@@ -1,18 +1,21 @@
 import { prisma } from "@/lib/db";
 import { parseJsonArray } from "@/lib/json-array";
 import { Message } from "@/lib/llm/types";
+import { search as vectorSearch } from "@/lib/memory/vector-store";
 
 interface ContextBuildParams {
   episodeId: string;
   podcasterId: string;
   userId: string;
   currentTimestamp: number;
+  userMessage?: string;
 }
 
 export async function buildConversationContext(
   params: ContextBuildParams
 ): Promise<Message[]> {
-  const { episodeId, podcasterId, userId, currentTimestamp } = params;
+  const { episodeId, podcasterId, userId, currentTimestamp, userMessage } =
+    params;
 
   const [recentChunks, podcasterProfile, userMemory, podcaster] =
     await Promise.all([
@@ -37,6 +40,21 @@ export async function buildConversationContext(
     ]);
 
   const transcriptContext = recentChunks.map((c) => c.text).join(" ");
+
+  // Semantic search for related content across all episodes
+  let relatedContent: string[] = [];
+  if (userMessage) {
+    try {
+      const semanticResults = await vectorSearch(userMessage, 3);
+      // Filter out chunks already in the timestamp window to avoid duplication
+      const recentChunkIds = new Set(recentChunks.map((c) => c.id));
+      relatedContent = semanticResults
+        .filter((r) => !recentChunkIds.has(r.id) && r.score > 0.3)
+        .map((r) => r.text);
+    } catch {
+      // Silently ignore vector search failures – fall back to timestamp context
+    }
+  }
 
   let systemPrompt = `You are an AI representation of ${podcaster?.name || "the podcaster"}. `;
   systemPrompt += `You embody their personality, knowledge, and conversational style. `;
@@ -69,6 +87,15 @@ export async function buildConversationContext(
   systemPrompt += `The listener paused at ${formatTimestamp(currentTimestamp)} in the episode. `;
   systemPrompt += `Here is the recent transcript context:\n\n`;
   systemPrompt += `"${transcriptContext}"\n\n`;
+  if (relatedContent.length > 0) {
+    systemPrompt += `## Related Content\n`;
+    systemPrompt += `These excerpts from your episodes may also be relevant:\n\n`;
+    for (const content of relatedContent) {
+      systemPrompt += `- "${content}"\n`;
+    }
+    systemPrompt += "\n";
+  }
+
   systemPrompt += `Answer the listener's question based on this context and your broader knowledge. `;
   systemPrompt += `Stay in character. Be conversational and helpful.`;
 

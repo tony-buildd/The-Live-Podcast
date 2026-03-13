@@ -10,13 +10,15 @@
     "test": "vitest run --reporter=verbose"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@prisma/adapter-better-sqlite3": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "next": "16.1.6",
     "prisma": "^7.5.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "vectra": "^0.12.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

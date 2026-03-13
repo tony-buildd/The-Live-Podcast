@@ -6,6 +6,7 @@ import {
   chunkTranscript,
 } from "@/lib/transcript/index";
 import { buildPodcasterProfile } from "@/lib/memory/profile-builder";
+import { addChunks } from "@/lib/memory/vector-store";
 
 interface PostRequestBody {
   url?: string;
@@ -134,6 +135,33 @@ export async function POST(request: Request): Promise<Response> {
   buildPodcasterProfile(episode.podcasterId).catch(() => {
     // Silently ignore profile building failures
   });
+
+  // Embed transcript chunks in the vector store (fire-and-forget)
+  const chunkItems = episode.transcriptChunks.map((chunk) => ({
+    id: chunk.id,
+    text: chunk.text,
+    metadata: {
+      episodeId: episode.id,
+      podcasterId: episode.podcasterId,
+      startTime: chunk.startTime,
+      endTime: chunk.endTime,
+    },
+  }));
+  addChunks(chunkItems)
+    .then(async () => {
+      // Set embeddingId on each chunk after successful embedding
+      await Promise.all(
+        episode.transcriptChunks.map((chunk) =>
+          prisma.transcriptChunk.update({
+            where: { id: chunk.id },
+            data: { embeddingId: chunk.id },
+          }),
+        ),
+      );
+    })
+    .catch(() => {
+      // Silently ignore embedding failures
+    });
 
   return NextResponse.json(episode, { status: 201 });
 }

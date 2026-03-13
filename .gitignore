@@ -42,6 +42,8 @@ prisma/test.db
 prisma/test.db-journal
 prisma/test-chat.db
 prisma/test-chat.db-journal
+prisma/test-profiles.db
+prisma/test-profiles.db-journal
 
 # vercel
 .vercel

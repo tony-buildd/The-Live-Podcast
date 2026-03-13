@@ -46,8 +46,9 @@ vi.mock("@/lib/db", () => ({
 }));
 
 // ── Mock profile builder (optional async trigger) ─────────────────────
+const mockBuildPodcasterProfile = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/memory/profile-builder", () => ({
-  buildPodcasterProfile: vi.fn().mockResolvedValue(undefined),
+  buildPodcasterProfile: mockBuildPodcasterProfile,
 }));
 
 // ── Test helpers ──────────────────────────────────────────────────────
@@ -347,6 +348,44 @@ describe("Episode API Routes", () => {
 
       expect(episode).not.toBeNull();
       expect(episode!.transcriptChunks.length).toBe(SAMPLE_TRANSCRIPT.length);
+    });
+
+    it("triggers profile building after successful episode ingestion", async () => {
+      mockFetchTranscript.mockResolvedValueOnce(SAMPLE_TRANSCRIPT);
+
+      const req = createRequest("POST", { url: VALID_YOUTUBE_URL });
+      const res = await POST(req);
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+
+      // Wait a tick for the async fire-and-forget to execute
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // buildPodcasterProfile should be called with the podcaster ID
+      expect(mockBuildPodcasterProfile).toHaveBeenCalledWith(body.podcaster.id);
+    });
+
+    it("does not fail episode creation when profile building fails", async () => {
+      mockFetchTranscript.mockResolvedValueOnce(SAMPLE_TRANSCRIPT);
+      mockBuildPodcasterProfile.mockRejectedValueOnce(
+        new Error("LLM unreachable")
+      );
+
+      const req = createRequest("POST", { url: VALID_YOUTUBE_URL });
+      const res = await POST(req);
+
+      // Episode creation should still succeed
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      expect(body.id).toBeDefined();
+
+      // Verify episode was created despite profile failure
+      const episode = await testPrisma.episode.findUnique({
+        where: { id: body.id },
+      });
+      expect(episode).not.toBeNull();
     });
   });
 

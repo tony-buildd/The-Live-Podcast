@@ -1,0 +1,55 @@
+{
+  "featureId": "foundation-housekeeping",
+  "reviewedAt": "2026-03-13T03:15:00.000Z",
+  "commitId": "1a95531",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "All 10 housekeeping items are correctly implemented. Package renamed to 'copod', layout.tsx metadata updated, .env.example created with all 7 env vars, .gitignore properly configured (including !.env.example exclusion), Prisma schema switched to SQLite, String[] fields converted to JSON strings with well-implemented parse/stringify helpers, dotenv removed from prisma.config.ts, vitest + @testing-library/react installed, vitest.config.ts configured with @/ alias, and smoke test covers PrismaClient connection with the required adapter pattern. The JSON array helpers in src/lib/json-array.ts are robust — they handle null/undefined, invalid JSON, and filter for string-only items. The db.ts singleton correctly uses the globalThis caching pattern for HMR safety. Both profile-builder.ts and context-builder.ts properly use parseJsonArray/stringifyJsonArray for the converted fields.",
+    "issues": [
+      {
+        "file": ".factory/library/environment.md",
+        "line": 12,
+        "severity": "non_blocking",
+        "description": "DATABASE_URL default listed as 'file:./dev.db' in the table, but actual code default (in db.ts and prisma.config.ts) is 'file:./prisma/dev.db'. This mismatch could confuse future workers."
+      },
+      {
+        "file": ".factory/library/environment.md",
+        "line": 30,
+        "severity": "non_blocking",
+        "description": "Stale note: 'dotenv is imported in prisma.config.ts but NOT in package.json — needs to be installed or the import removed'. The worker removed the dotenv import (feature item 6), so this documentation is now incorrect."
+      },
+      {
+        "file": "package.json",
+        "line": 10,
+        "severity": "non_blocking",
+        "description": "prisma (^7.5.0) is in dependencies rather than devDependencies. For a Next.js project using @prisma/client, the CLI tool (prisma) is typically a devDependency. Works fine but non-standard. Already documented in environment.md as known."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "environment.md has stale documentation about dotenv: says 'dotenv is imported in prisma.config.ts but NOT in package.json' but the worker removed the dotenv import as part of this feature. The note should be removed or updated.",
+      "evidence": ".factory/library/environment.md line ~30 says 'dotenv is imported in prisma.config.ts' but prisma.config.ts no longer imports dotenv (confirmed in git diff for commit 1a95531)"
+    },
+    {
+      "area": "knowledge",
+      "observation": "environment.md lists DATABASE_URL default as 'file:./dev.db' but the actual default in code is 'file:./prisma/dev.db'. The feature description itself said 'file:./dev.db' but the worker correctly chose 'file:./prisma/dev.db' (which resolves to {project root}/prisma/dev.db). The docs should match the code.",
+      "evidence": ".factory/library/environment.md table row for DATABASE_URL shows 'file:./dev.db'; src/lib/db.ts:9 and prisma.config.ts:9 both use 'file:./prisma/dev.db'; .env.example also uses 'file:./prisma/dev.db'"
+    },
+    {
+      "area": "conventions",
+      "observation": "The Prisma SQLite adapter pattern is well-documented in AGENTS.md ('Prisma SQLite Adapter Pattern' section), which is good. The worker also left clear notes in the handoff about this requirement for future workers.",
+      "evidence": "AGENTS.md contains dedicated section on adapter pattern; handoff discoveredIssues item references tests/smoke.test.ts as the canonical pattern"
+    },
+    {
+      "area": "skills",
+      "observation": "Worker followed the skill procedure but noted that test-first (RED) doesn't apply to infrastructure setup features — tests can only be written after vitest is installed and Prisma is configured. The skill's 'Write Tests First' step could note that infra/setup features are exempt.",
+      "evidence": "handoff.skillFeedback.followedProcedure is true; skillFeedback.suggestedChanges notes: 'for infrastructure/housekeeping features like this one, tests can only be written after the infrastructure is set up'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature foundation-housekeeping passes review. All 10 requirements are fully implemented: package renamed, metadata updated, .env.example created, .gitignore configured, Prisma switched to SQLite with adapter pattern, String[] fields converted to JSON strings with robust helpers, dotenv removed, vitest installed and configured, and smoke test passes. Three non-blocking issues found: (1) environment.md has stale dotenv note, (2) environment.md has incorrect DATABASE_URL default, (3) prisma CLI in dependencies instead of devDependencies. No blocking issues."
+}

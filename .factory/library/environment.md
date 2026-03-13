@@ -11,7 +11,7 @@ Environment variables, external dependencies, and setup notes.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| DATABASE_URL | Yes | file:./dev.db | SQLite database path |
+| DATABASE_URL | Yes | file:./prisma/dev.db | SQLite database path |
 | LLM_PROVIDER | Yes | ollama | "ollama" or "openai" |
 | OLLAMA_BASE_URL | If ollama | http://localhost:11434 | Ollama API base URL |
 | OLLAMA_MODEL | If ollama | llama3.1 | Ollama model name |
@@ -22,7 +22,6 @@ Environment variables, external dependencies, and setup notes.
 ## Dependencies Notes
 
 - `prisma` is in `dependencies` (should be `devDependencies` but works fine)
-- `dotenv` is imported in `prisma.config.ts` but NOT in package.json — needs to be installed or the import removed
 - `uuid` is installed but currently unused
 - Next.js 16 uses Turbopack by default for dev
 - The `node_modules/.bin/next` shim may be broken — use `node node_modules/next/dist/bin/next` as fallback

@@ -1,0 +1,61 @@
+{
+  "featureId": "api-episodes-crud",
+  "reviewedAt": "2026-03-13T03:15:00.000Z",
+  "commitId": "42b8265",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation of all three episode API routes (POST, GET list, GET detail) with proper error handling, Prisma transactions, and comprehensive test coverage. The code follows project conventions (TypeScript strict, @/* imports, NextResponse, proper HTTP status codes). All 10 expectedBehavior items from the feature spec are covered. The 18 tests in the commit cover all happy paths and error cases including URL validation (400), duplicate detection (409), transcript unavailability (422), transactional creation, and 404 handling. The POST handler correctly uses a Prisma transaction for atomic creation of Podcaster + Episode + TranscriptChunks, and fires profile building asynchronously with a .catch() to prevent failures from affecting the response.",
+    "issues": [
+      {
+        "file": "tests/api/episodes.test.ts",
+        "line": 309,
+        "severity": "non_blocking",
+        "description": "The 'creates Podcaster record and reuses for same channel' test uses two different YouTube video IDs (dQw4w9WgXcQ and 9bZkp7q19f0), which with the placeholder channelUrl pattern (placeholder-${youtubeId}) will create two separate Podcaster records. The assertion `expect(podcasters.length).toBeGreaterThanOrEqual(1)` passes with 2 podcasters but doesn't actually verify VAL-INGEST-005 (podcaster reuse for same channel). This is inherent to the placeholder design, but the test name is misleading about what it verifies."
+      },
+      {
+        "file": "src/app/api/episodes/route.ts",
+        "line": 67,
+        "severity": "non_blocking",
+        "description": "The variable `segments` is declared as `let segments;` without a type annotation. While TypeScript infers the type from the assignment inside the try block, an explicit type annotation (e.g., `let segments: TranscriptSegment[]`) would improve readability and make the type intent clearer at the declaration site."
+      },
+      {
+        "file": "src/app/api/episodes/route.ts",
+        "line": 22,
+        "severity": "non_blocking",
+        "description": "No top-level try-catch around the Prisma transaction or other database operations. If the transaction fails unexpectedly (e.g., DB lock, connection issue), the error would bubble up as an unhandled exception resulting in a generic 500 from the Next.js framework. While acceptable for development, explicit 500 handling with a descriptive error message would be more robust."
+      },
+      {
+        "file": "tests/api/episodes.test.ts",
+        "line": 10,
+        "severity": "non_blocking",
+        "description": "The mockExtractYouTubeId re-implements the exact regex patterns from the real extractYouTubeId function. This couples the test to the implementation details and creates a risk that the mock and real function could diverge silently. Consider using a simpler mock that returns known video IDs for known URLs."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Tests import PrismaClient from relative path '../../src/generated/prisma/client.js' rather than using the @/* path alias ('import { PrismaClient } from \"@/generated/prisma/client\"'). AGENTS.md states to use '@/*' path alias for imports but the test file uses a relative path. This may be intentional (test files outside src/ may not have path alias resolution) but should be clarified as a convention.",
+      "evidence": "tests/api/episodes.test.ts:3 — import { PrismaClient } from '../../src/generated/prisma/client.js'"
+    },
+    {
+      "area": "conventions",
+      "observation": "Tests use 'npx prisma db push --force-reset' via child_process.execSync in beforeAll to set up the test database. This is a reusable pattern that future API test writers should follow but isn't documented in AGENTS.md or library/.",
+      "evidence": "tests/api/episodes.test.ts:108-113 — execSync('npx prisma db push --force-reset', { env: { ...process.env, DATABASE_URL: 'file:./prisma/test.db' } })"
+    },
+    {
+      "area": "conventions",
+      "observation": "The placeholder channelUrl pattern (https://www.youtube.com/channel/placeholder-${youtubeId}) means every video gets its own unique Podcaster record. This design decision is noted in code comments but not in AGENTS.md or architecture docs. Future features that depend on podcaster grouping need to be aware of this limitation.",
+      "evidence": "src/app/api/episodes/route.ts:82 — const channelUrl = `https://www.youtube.com/channel/placeholder-${youtubeId}`"
+    },
+    {
+      "area": "skills",
+      "observation": "Worker's skillFeedback suggests the backend-worker skill should mention that npx shims may be broken and to check AGENTS.md for workarounds. This is already documented in AGENTS.md's Known Issues section but the skill file doesn't reference it.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: 'The skill could mention that npx shims may be broken and to check AGENTS.md for workarounds'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The api-episodes-crud feature is well-implemented with all three routes (POST, GET list, GET detail) working correctly. The POST handler properly validates URLs, checks for duplicates, fetches transcripts, creates records atomically in a Prisma transaction, and triggers async profile building. Error handling covers all required HTTP status codes (400, 409, 422, 404). The 18 tests comprehensively cover happy paths and error cases. All non-blocking issues are minor: a slightly misleading podcaster-reuse test (due to placeholder channelUrl design), missing type annotation on segments variable, lack of explicit 500 error handling, and test mocks re-implementing real logic. The worker followed the backend-worker skill procedure (test-first, implement, verify manually via curl, run validators) and all verification commands passed."
+}

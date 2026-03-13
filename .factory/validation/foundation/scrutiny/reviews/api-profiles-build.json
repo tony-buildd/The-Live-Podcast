@@ -1,0 +1,51 @@
+{
+  "featureId": "api-profiles-build",
+  "reviewedAt": "2026-03-13T03:15:00.000Z",
+  "commitId": "2b5ab02",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation of POST /api/profiles/build that covers all required behaviors: 400 for validation errors, 404 for missing podcaster, 503 for LLM/build failures, and 200 with parsed profile data on success. The route follows established patterns from other API routes (episodes, chat). Tests are comprehensive with 11 cases in profiles.test.ts plus 2 episode integration tests. The episode ingestion trigger was already in place (fire-and-forget pattern); the worker correctly added tests to verify it. Code quality is clean with proper TypeScript types, explicit return types, and consistent error message formatting.",
+    "issues": [
+      {
+        "file": "src/app/api/profiles/build/route.ts",
+        "line": 63,
+        "severity": "non_blocking",
+        "description": "All errors from buildPodcasterProfile are mapped to 503. This is correct per requirements ('Return 503 if LLM is unreachable'), but conflates potential database errors inside the builder (e.g., Prisma upsert failure) with LLM unreachability. For foundation milestone this is acceptable; a future enhancement could differentiate error types."
+      },
+      {
+        "file": "src/app/api/profiles/build/route.ts",
+        "line": 68,
+        "severity": "non_blocking",
+        "description": "The profile fetch after successful build uses findFirst with orderBy instead of findUnique with the known deterministic ID (`${podcasterId}-latest`). Since buildPodcasterProfile uses a deterministic ID for upsert, findUnique({ where: { id: `${podcasterId}-latest` } }) would be more efficient and explicit. findFirst works correctly but is slightly less precise."
+      },
+      {
+        "file": "src/app/api/profiles/build/route.ts",
+        "line": 68,
+        "severity": "non_blocking",
+        "description": "No try/catch around the post-build prisma.podcasterProfile.findFirst query (lines 68-72). If the database fails at this point after a successful build, it would throw an unhandled error resulting in a generic 500. This is minor since Next.js handles unhandled errors, but explicit handling would provide a better error message."
+      },
+      {
+        "file": "tests/api/episodes.test.ts",
+        "line": 361,
+        "severity": "non_blocking",
+        "description": "The fire-and-forget assertion relies on setTimeout(50ms) to allow the async call to complete. While the mock resolves immediately making 50ms more than sufficient, timer-based assertions can be flaky in constrained CI environments. Consider using vi.waitFor() or flushing microtasks instead."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The test file creates a separate test database (test-profiles.db) following the pattern established by other test files (test.db, test-chat.db). This per-test-file database pattern avoids SQLite lock conflicts but isn't explicitly documented in AGENTS.md — it's only discovered by reading existing test files. Documenting this pattern would help future workers.",
+      "evidence": "tests/api/profiles.test.ts:7 creates PrismaBetterSqlite3({ url: 'file:./prisma/test-profiles.db' }), matching pattern in tests/api/episodes.test.ts and tests/api/chat.test.ts"
+    },
+    {
+      "area": "conventions",
+      "observation": "The deterministic profile ID convention (`${podcasterId}-latest`) is used in both profile-builder.ts (upsert where clause) and the test mock, but isn't documented anywhere. This coupling between the builder and the test mock works but could break if the ID strategy changes.",
+      "evidence": "src/lib/memory/profile-builder.ts:57 uses `${podcasterId}-latest` for upsert; tests/api/profiles.test.ts:133 replicates same ID pattern in mock"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The POST /api/profiles/build implementation is complete and correct, covering all required behaviors from the feature description: input validation (400), podcaster existence check (404), LLM error handling (503), and successful profile building with parsed JSON arrays (200). The episode ingestion trigger was already implemented; the worker added proper test coverage for it. 11 profile tests + 2 episode integration tests were added. All non-blocking issues are minor code quality improvements suitable for a polish phase."
+}

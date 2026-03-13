@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations       Conversation[]
+  userPodcasterMemory UserPodcasterMemory[]
+}
+
+model Podcaster {
+  id                     String   @id @default(cuid())
+  name                   String
+  channelUrl             String   @unique
+  description            String?
+  profileEmbeddingSummary String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  episodes            Episode[]
+  conversations       Conversation[]
+  profiles            PodcasterProfile[]
+  userPodcasterMemory UserPodcasterMemory[]
+}
+
+model Episode {
+  id          String   @id @default(cuid())
+  podcasterId String
+  youtubeUrl  String   @unique
+  youtubeId   String   @unique
+  title       String
+  description String?
+  thumbnailUrl String?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  podcaster       Podcaster         @relation(fields: [podcasterId], references: [id], onDelete: Cascade)
+  transcriptChunks TranscriptChunk[]
+  conversations   Conversation[]
+
+  @@index([podcasterId])
+}
+
+model TranscriptChunk {
+  id          String  @id @default(cuid())
+  episodeId   String
+  text        String
+  startTime   Float
+  endTime     Float
+  embeddingId String?
+
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId])
+  @@index([episodeId, startTime])
+}
+
+model Conversation {
+  id                 String   @id @default(cuid())
+  userId             String
+  podcasterId        String
+  episodeId          String
+  timestampInEpisode Float
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  podcaster Podcaster             @relation(fields: [podcasterId], references: [id], onDelete: Cascade)
+  episode   Episode               @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  messages  ConversationMessage[]
+
+  @@index([userId, podcasterId])
+  @@index([episodeId])
+}
+
+model ConversationMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // "user" | "assistant"
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model PodcasterProfile {
+  id               String   @id @default(cuid())
+  podcasterId      String
+  summaryText      String
+  topics           String   @default("[]")
+  personalityTraits String   @default("[]")
+  speakingStyle    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  podcaster Podcaster @relation(fields: [podcasterId], references: [id], onDelete: Cascade)
+
+  @@index([podcasterId])
+}
+
+model UserPodcasterMemory {
+  id                       String   @id @default(cuid())
+  userId                   String
+  podcasterId              String
+  summaryOfPastInteractions String
+  keyTopicsDiscussed       String   @default("[]")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  podcaster Podcaster @relation(fields: [podcasterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, podcasterId])
+  @@index([userId])
+  @@index([podcasterId])
+}

@@ -1,0 +1,19 @@
+commands:
+  install: npm install
+  dev: node node_modules/next/dist/bin/next dev --port 3100
+  build: node node_modules/next/dist/bin/next build
+  typecheck: npx tsc --noEmit
+  lint: npx eslint .
+  test: npx vitest run --reporter=verbose
+  test:watch: npx vitest --reporter=verbose
+  prisma:generate: npx prisma generate
+  prisma:migrate: npx prisma migrate dev
+  prisma:studio: npx prisma studio
+
+services:
+  web:
+    start: node node_modules/next/dist/bin/next dev --port 3100
+    stop: lsof -ti :3100 | xargs kill 2>/dev/null || true
+    healthcheck: curl -sf http://localhost:3100
+    port: 3100
+    depends_on: []

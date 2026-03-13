@@ -83,7 +83,7 @@ export async function fetchTranscript(
 
   // Method 1: Look for ytInitialPlayerResponse variable
   const playerResponseMatch = videoPageBody.match(
-    /ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var\s|<\/script>)/s
+    /ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\});\s*(?:var\s|<\/script>)/
   );
   if (playerResponseMatch) {
     try {

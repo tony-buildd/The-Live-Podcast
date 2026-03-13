@@ -134,7 +134,7 @@ export default function AddEpisodeModal({ open, onClose }: AddEpisodeModalProps)
         if (e.target === e.currentTarget && !loading) onClose();
       }}
     >
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900">
+      <div className="w-full max-w-md max-w-[calc(100vw-2rem)] rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
             Add Episode

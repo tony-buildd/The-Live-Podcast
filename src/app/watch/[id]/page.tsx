@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import Navigation from "@/components/Navigation";
 import YouTubePlayer, {
   type YouTubePlayerHandle,
 } from "@/components/YouTubePlayer";
@@ -91,42 +90,34 @@ export default function WatchPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-zinc-950">
-        <Navigation />
-        <div className="flex items-center justify-center py-32">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
-        </div>
+      <div className="flex items-center justify-center py-32">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" role="status" aria-label="Loading" />
       </div>
     );
   }
 
   if (error || !episode) {
     return (
-      <div className="min-h-screen bg-white dark:bg-zinc-950">
-        <Navigation />
-        <div className="mx-auto max-w-5xl px-4 py-32 text-center sm:px-6">
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            Episode not found
-          </h1>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            The episode you&apos;re looking for doesn&apos;t exist or has been
-            removed.
-          </p>
-          <Link
-            href="/library"
-            className="mt-6 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            Back to Library
-          </Link>
-        </div>
+      <div className="mx-auto max-w-5xl px-4 py-32 text-center sm:px-6">
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          Episode not found
+        </h1>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+          The episode you&apos;re looking for doesn&apos;t exist or has been
+          removed.
+        </p>
+        <Link
+          href="/library"
+          className="mt-6 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-50"
+        >
+          Back to Library
+        </Link>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-white dark:bg-zinc-950">
-      <Navigation />
-
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {/* Episode title */}
         <h1 className="mb-4 text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-xl">

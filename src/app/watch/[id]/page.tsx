@@ -7,6 +7,9 @@ import YouTubePlayer, {
   type YouTubePlayerHandle,
 } from "@/components/YouTubePlayer";
 import ChatPanel from "@/components/ChatPanel";
+import VoiceConversation from "@/components/VoiceConversation";
+import { SpeechRecognitionService } from "@/lib/voice/speech-recognition";
+import { SpeechSynthesisService } from "@/lib/voice/speech-synthesis";
 
 interface Episode {
   id: string;
@@ -26,9 +29,12 @@ export default function WatchPage() {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chatActive, setChatActive] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [micError, setMicError] = useState(false);
   const [chatTimestamp, setChatTimestamp] = useState(0);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const playerRef = useRef<YouTubePlayerHandle>(null);
+  const jumpInGuardRef = useRef(false);
 
   useEffect(() => {
     if (!params.id) {
@@ -58,14 +64,37 @@ export default function WatchPage() {
   }, [params.id]);
 
   const handleJumpIn = useCallback(() => {
+    // Guard against rapid toggling / duplicate instances
+    if (jumpInGuardRef.current || chatActive) return;
+    jumpInGuardRef.current = true;
+
     if (playerRef.current) {
       playerRef.current.pause();
       setChatTimestamp(playerRef.current.getCurrentTime());
     }
+
+    // Check if voice is supported (Chrome-like browsers)
+    const supportsVoice = SpeechRecognitionService.isSupported() && SpeechSynthesisService.isSupported();
+    setVoiceMode(supportsVoice);
+    setMicError(false);
     setChatActive(true);
+
+    // Release guard after a short delay
+    setTimeout(() => {
+      jumpInGuardRef.current = false;
+    }, 300);
+  }, [chatActive]);
+
+  const handleMicError = useCallback(() => {
+    setMicError(true);
+    setVoiceMode(false);
   }, []);
 
   const handleResume = useCallback(async () => {
+    // Guard against rapid toggling
+    if (jumpInGuardRef.current) return;
+    jumpInGuardRef.current = true;
+
     // End the conversation if we have one
     if (conversationId && episode) {
       try {
@@ -84,8 +113,14 @@ export default function WatchPage() {
     }
 
     setChatActive(false);
+    setVoiceMode(false);
+    setMicError(false);
     setConversationId(null);
     playerRef.current?.play();
+
+    setTimeout(() => {
+      jumpInGuardRef.current = false;
+    }, 300);
   }, [conversationId, episode]);
 
   if (loading) {
@@ -186,12 +221,74 @@ export default function WatchPage() {
 
           {/* Chat column */}
           {chatActive && (
-            <div className="h-[500px] w-full lg:h-auto lg:min-h-[500px] lg:w-[40%]">
-              <ChatPanel
-                episodeId={episode.id}
-                podcasterId={episode.podcaster.id}
-                currentTimestamp={chatTimestamp}
-              />
+            <div className="flex h-[500px] w-full flex-col gap-3 lg:h-auto lg:min-h-[500px] lg:w-[40%]">
+              {/* Mode indicator */}
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                    voiceMode
+                      ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                  }`}
+                  aria-label={voiceMode ? "Voice mode active" : "Text mode active"}
+                >
+                  {voiceMode ? (
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.2 48.2 0 0 0 5.265-.602c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+                    </svg>
+                  )}
+                  {voiceMode ? "Voice" : "Text"}
+                </span>
+                {voiceMode && (
+                  <button
+                    type="button"
+                    onClick={() => setVoiceMode(false)}
+                    className="text-xs text-zinc-500 underline hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-300 dark:focus-visible:outline-zinc-50"
+                  >
+                    Switch to text
+                  </button>
+                )}
+                {!voiceMode && SpeechRecognitionService.isSupported() && !micError && (
+                  <button
+                    type="button"
+                    onClick={() => setVoiceMode(true)}
+                    className="text-xs text-zinc-500 underline hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-300 dark:focus-visible:outline-zinc-50"
+                  >
+                    Switch to voice
+                  </button>
+                )}
+              </div>
+
+              {/* Mic permission error */}
+              {micError && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300" role="alert">
+                  Microphone access was denied. Using text chat instead.
+                </div>
+              )}
+
+              {/* Voice or Text conversation */}
+              {voiceMode ? (
+                <div className="flex-1">
+                  <VoiceConversation
+                    episodeId={episode.id}
+                    podcasterId={episode.podcaster.id}
+                    currentTimestamp={chatTimestamp}
+                    onMicError={handleMicError}
+                  />
+                </div>
+              ) : (
+                <div className="flex-1">
+                  <ChatPanel
+                    episodeId={episode.id}
+                    podcasterId={episode.podcaster.id}
+                    currentTimestamp={chatTimestamp}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

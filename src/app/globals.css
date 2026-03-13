@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@keyframes voice-wave {
+  0%,
+  100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

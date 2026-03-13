@@ -2,9 +2,11 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vites
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../../src/generated/prisma/client.js";
 
-// Create test database client
+// Create test database client (separate DB to avoid lock conflicts)
 const testAdapter = new PrismaBetterSqlite3({ url: "file:./prisma/test-cross-episode.db" });
 const testPrisma = new PrismaClient({ adapter: testAdapter });
+
+const mockChat = vi.fn();
 
 // ── Mock db module to use test database ───────────────────────────────
 vi.mock("@/lib/db", () => ({
@@ -12,7 +14,6 @@ vi.mock("@/lib/db", () => ({
 }));
 
 // ── Mock LLM provider ────────────────────────────────────────────────
-const mockChat = vi.fn();
 vi.mock("@/lib/llm", () => ({
   getLLMProvider: () => ({
     chat: mockChat,
@@ -27,10 +28,11 @@ vi.mock("@/lib/memory/vector-store", () => ({
   deleteByMetadata: vi.fn().mockResolvedValue(0),
 }));
 
-// ── Import modules under test (after mocks) ─────────────────────────
-import { updateUserPodcasterMemory, buildPodcasterProfile } from "@/lib/memory/profile-builder";
-import { buildConversationContext } from "@/lib/memory/context-builder";
-import { parseJsonArray } from "@/lib/json-array";
+// ── Lazy-loaded modules under test ──────────────────────────────────
+let updateUserPodcasterMemory: typeof import("@/lib/memory/profile-builder").updateUserPodcasterMemory;
+let buildPodcasterProfile: typeof import("@/lib/memory/profile-builder").buildPodcasterProfile;
+let buildConversationContext: typeof import("@/lib/memory/context-builder").buildConversationContext;
+let parseJsonArray: typeof import("@/lib/json-array").parseJsonArray;
 
 // ── Test helpers ──────────────────────────────────────────────────────
 async function cleanDatabase(): Promise<void> {
@@ -85,7 +87,7 @@ async function seedTestData(): Promise<SeedData> {
   };
 }
 
-// ── Setup ─────────────────────────────────────────────────────────────
+// ── Tests ─────────────────────────────────────────────────────────────
 describe("Cross-episode memory", () => {
   let seed: SeedData;
 
@@ -96,6 +98,17 @@ describe("Cross-episode memory", () => {
       cwd: process.cwd(),
       stdio: "pipe",
     });
+
+    // Dynamic imports after mocks are registered
+    const profileBuilder = await import("@/lib/memory/profile-builder");
+    updateUserPodcasterMemory = profileBuilder.updateUserPodcasterMemory;
+    buildPodcasterProfile = profileBuilder.buildPodcasterProfile;
+
+    const contextBuilder = await import("@/lib/memory/context-builder");
+    buildConversationContext = contextBuilder.buildConversationContext;
+
+    const jsonArray = await import("@/lib/json-array");
+    parseJsonArray = jsonArray.parseJsonArray;
   });
 
   beforeEach(async () => {
@@ -113,7 +126,6 @@ describe("Cross-episode memory", () => {
 
   describe("updateUserPodcasterMemory", () => {
     it("creates new memory on first conversation", async () => {
-      // Create a conversation with messages
       const convo = await testPrisma.conversation.create({
         data: {
           userId: seed.userId,
@@ -129,7 +141,6 @@ describe("Cross-episode memory", () => {
         ],
       });
 
-      // Mock LLM responses for summary and topics
       mockChat
         .mockResolvedValueOnce("Listener asked about machine learning basics.")
         .mockResolvedValueOnce("machine learning, AI basics");
@@ -197,14 +208,13 @@ describe("Cross-episode memory", () => {
       });
 
       expect(memory).not.toBeNull();
-      // Summaries should be separated by \n\n
       expect(memory!.summaryOfPastInteractions).toBe(
         "Discussed AI fundamentals.\n\nExplored robotics applications of AI."
       );
     });
 
     it("deduplicates topics across conversations", async () => {
-      // First conversation - creates memory with initial topics
+      // First conversation
       const convo1 = await testPrisma.conversation.create({
         data: {
           userId: seed.userId,
@@ -226,7 +236,7 @@ describe("Cross-episode memory", () => {
 
       await updateUserPodcasterMemory(seed.userId, seed.podcasterId, convo1.id);
 
-      // Second conversation - has overlapping topics
+      // Second conversation with overlapping topics
       const convo2 = await testPrisma.conversation.create({
         data: {
           userId: seed.userId,
@@ -253,12 +263,10 @@ describe("Cross-episode memory", () => {
       });
 
       const topics = parseJsonArray(memory!.keyTopicsDiscussed);
-      // "machine learning" and "AI" should appear only once each
       const mlCount = topics.filter((t) => t === "machine learning").length;
       const aiCount = topics.filter((t) => t === "AI").length;
       expect(mlCount).toBe(1);
       expect(aiCount).toBe(1);
-      // All unique topics should be present
       expect(topics).toContain("machine learning");
       expect(topics).toContain("deep learning");
       expect(topics).toContain("AI");
@@ -283,7 +291,6 @@ describe("Cross-episode memory", () => {
       });
 
       expect(memory).toBeNull();
-      // LLM should not have been called
       expect(mockChat).not.toHaveBeenCalled();
     });
   });
@@ -492,7 +499,6 @@ describe("Cross-episode memory", () => {
         where: { podcasterId: seed.podcasterId },
       });
 
-      // Should be upserted (same id), not duplicated
       expect(profiles).toHaveLength(1);
       expect(profiles[0].summaryText).toContain("robotics");
 
@@ -501,7 +507,6 @@ describe("Cross-episode memory", () => {
     });
 
     it("does nothing when podcaster has no episodes", async () => {
-      // Create a podcaster with no episodes
       const emptyPodcaster = await testPrisma.podcaster.create({
         data: {
           name: "Empty Podcaster",

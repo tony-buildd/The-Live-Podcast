@@ -33,6 +33,10 @@ Environment variables, external dependencies, and setup notes.
 - Database file: `prisma/dev.db` (auto-created by Prisma migrate)
 - Prisma client output: `src/generated/prisma` (gitignored)
 
+## youtube-transcript Library Limitations
+
+The `youtube-transcript` npm package may return empty segments for many YouTube videos. This is a known limitation — the library scrapes YouTube's auto-generated captions which may not be available for all videos. When testing with real YouTube URLs, use videos known to have working captions (e.g., tech talks, podcasts with manual captions). The empty transcript case correctly returns 422 from the API.
+
 ## Ollama
 
 - Must be running on localhost:11434

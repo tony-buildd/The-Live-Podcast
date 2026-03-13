@@ -1,0 +1,74 @@
+{
+  "flowId": "chat",
+  "milestone": "foundation",
+  "testedAt": "2026-03-13T03:12:00.000Z",
+  "isolation": {
+    "appUrl": "http://localhost:3100",
+    "apiBaseUrl": "http://localhost:3100/api",
+    "database": "SQLite at prisma/dev.db",
+    "llm": "Ollama at localhost:11434 with tinyllama model",
+    "testUserPrefix": "chat-validator-",
+    "testUserId": "chat-validator-user-001",
+    "testPodcasterId": "chat-validator-podcaster-001",
+    "testEpisodeId": "chat-validator-episode-001"
+  },
+  "toolsUsed": ["curl", "node (for DB seeding and verification)"],
+  "assertions": {
+    "VAL-CHAT-001": {
+      "status": "pass",
+      "evidence": "Tested 6 scenarios: each of 5 required fields missing individually returns 400 with descriptive error naming the field. Multiple missing fields also returns 400 listing all missing fields.",
+      "details": "Missing episodeId -> 400 'Missing required fields: episodeId'; Missing podcasterId -> 400; Missing userId -> 400; Missing message -> 400; Missing timestamp -> 400; Multiple missing -> 400 with comma-separated list. See evidence/foundation/chat/VAL-CHAT-001-evidence.txt"
+    },
+    "VAL-CHAT-002": {
+      "status": "pass",
+      "evidence": "POST /api/chat returns Content-Type: text/event-stream. Tokens arrive as individual SSE 'data:' events. First event contains conversationId JSON. Stream terminates with 'data: [DONE]'.",
+      "details": "Response headers: content-type: text/event-stream, cache-control: no-cache, connection: keep-alive. SSE events: data: {\"conversationId\":\"...\"}, then token-by-token data events (e.g. 'data: I', 'data:  don', etc.), then 'data: [DONE]'. See evidence/foundation/chat/VAL-CHAT-002-evidence.txt"
+    },
+    "VAL-CHAT-003": {
+      "status": "pass",
+      "evidence": "Empty string message returns 400 with 'Message cannot be empty or whitespace-only'. Whitespace-only message ('   ') also returns 400 with same error.",
+      "details": "Both empty string and whitespace-only payloads correctly rejected with 400 status. See evidence/foundation/chat/VAL-CHAT-003-evidence.txt"
+    },
+    "VAL-CHAT-004": {
+      "status": "pass",
+      "evidence": "After 2 chat turns, database contains 4 ConversationMessage records: 2 user messages and 2 assistant messages, all with correct roles and meaningful content.",
+      "details": "DB query confirmed: msg1=[user] 'What topics...', msg2=[assistant] full LLM response about technology topics, msg3=[user] 'Tell me more...', msg4=[assistant] expanded response about AI and programming. User messages saved before stream, assistant messages saved after completion with full concatenated content. See evidence/foundation/chat/VAL-CHAT-004-evidence.txt"
+    },
+    "VAL-CHAT-005": {
+      "status": "pass",
+      "evidence": "Second message with same conversationId completed successfully. LLM response to 'Tell me more about AI and programming topics' provided contextual expansion of first response, listing 6 numbered topic categories.",
+      "details": "First message asked about show topics, got general answer. Second message asked for more details on AI/programming, got expanded numbered list covering AI, Programming Languages, Machine Learning, Data Science, Cybersecurity, Industry Trends. Both streams completed with [DONE]. See evidence/foundation/chat/VAL-CHAT-005-evidence.txt"
+    },
+    "VAL-CHAT-006": {
+      "status": "pass",
+      "evidence": "First message without conversationId created new Conversation record (id: cmmobmok40000d29krmlxac9q). SSE response started with data: {\"conversationId\":\"cmmobmok40000d29krmlxac9q\"}. Second message with that conversationId reused it - same ID in response, no new Conversation row.",
+      "details": "DB shows exactly one Conversation with correct userId, podcasterId, episodeId, timestampInEpisode=30. Second request returned same conversationId. See evidence/foundation/chat/VAL-CHAT-006-evidence.txt"
+    },
+    "VAL-CHAT-007": {
+      "status": "pass",
+      "evidence": "POST /api/chat/end returned 200 with {\"message\":\"Memory updated successfully\"}. UserPodcasterMemory record created in DB with meaningful summaryOfPastInteractions and keyTopicsDiscussed.",
+      "details": "Memory record contains summary covering AI, programming, cybersecurity, data science, machine learning topics discussed. keyTopicsDiscussed is a JSON array with relevant topics. LLM successfully generated the memory summary. See evidence/foundation/chat/VAL-CHAT-007-evidence.txt"
+    },
+    "VAL-CHAT-011": {
+      "status": "blocked",
+      "evidence": "Cannot make LLM unreachable: (1) AGENTS.md prohibits stopping/configuring Ollama, (2) API has no model override parameter in request body, (3) cannot change env vars without server restart. Code review confirms 503 handler exists in catch block of route.ts.",
+      "details": "The try/catch in src/app/api/chat/route.ts catches LLM stream errors and returns {error: 'AI service is currently unavailable. Please try again later.'} with status 503. OllamaProvider throws on non-OK response or missing body. Handler is correctly implemented but cannot be triggered without making Ollama unreachable. See evidence/foundation/chat/VAL-CHAT-011-evidence.txt"
+    }
+  },
+  "frictions": [
+    {
+      "description": "YouTube transcript fetching returns 0 segments for all tested videos (youtube-transcript library issue). Had to seed test data directly in SQLite database to proceed with chat testing.",
+      "resolved": true,
+      "resolution": "Used better-sqlite3 to directly insert test User, Podcaster, Episode, and TranscriptChunk records with chat-validator- prefixed IDs.",
+      "affectedAssertions": ["VAL-CHAT-002", "VAL-CHAT-004", "VAL-CHAT-005", "VAL-CHAT-006", "VAL-CHAT-007"]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Cannot test VAL-CHAT-011 (LLM unavailable → 503) because Ollama cannot be stopped per AGENTS.md isolation rules, and the API does not support model override in request body.",
+      "affectedAssertions": ["VAL-CHAT-011"],
+      "quickFixAttempted": "Reviewed code to confirm 503 handler exists. Considered using non-existent model but API doesn't expose model parameter in request."
+    }
+  ],
+  "summary": "Tested 8 assertions: 7 passed, 0 failed, 1 blocked (VAL-CHAT-011: cannot make LLM unreachable without violating isolation rules). All chat API validation, streaming, persistence, multi-turn, and memory features work correctly."
+}

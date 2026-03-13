@@ -1,0 +1,118 @@
+{
+  "flowId": "ingestion",
+  "milestone": "foundation",
+  "testedAt": "2026-03-13T03:16:00Z",
+  "isolation": {
+    "appUrl": "http://localhost:3100",
+    "apiBaseUrl": "http://localhost:3100/api",
+    "database": "prisma/dev.db",
+    "testDataPrefix": "ingest-validator-"
+  },
+  "toolsUsed": ["curl"],
+  "assertions": {
+    "VAL-INGEST-001": {
+      "status": "blocked",
+      "evidence": "Attempted POST /api/episodes with 20+ real YouTube URLs (dQw4w9WgXcQ, jNQXAC9IVRw, arj7oStGLkU, etc.). All returned 422 'No transcript available'. Root cause: youtube-transcript library v1.2.1 returns empty segments for all videos - YouTube timedtext API returns 200 with empty body. Library likely outdated for current YouTube API.",
+      "details": "The youtube-transcript library fetches the YouTube page HTML, extracts the timedtext base URL from caption tracks, but the timedtext endpoint returns 0 bytes for all format variants (srv1, srv2, srv3, vtt, json3). This is a systemic library issue, not a code bug. Unit tests pass with mocked transcripts. Updating the library or switching to an alternative (e.g., youtubei.js) would likely resolve this.",
+      "steps": [
+        {"action": "POST /api/episodes with dQw4w9WgXcQ", "expected": "201 with Episode data", "observed": "422 'No transcript available for this video'"},
+        {"action": "POST /api/episodes with jNQXAC9IVRw", "expected": "201 with Episode data", "observed": "422 'No transcript available for this video'"},
+        {"action": "Direct library test with 20+ video IDs", "expected": "Non-empty transcript segments", "observed": "0 segments for all videos"}
+      ]
+    },
+    "VAL-INGEST-002": {
+      "status": "pass",
+      "evidence": "Tested 6 invalid URL scenarios: non-YouTube URL, no video ID, empty URL, missing URL field, plain text, no body. All returned 400 with descriptive error messages. No records created.",
+      "details": "All input validation paths work correctly: (1) Non-YouTube domain → 400 'Invalid YouTube URL', (2) youtube.com/watch without v param → 400, (3) Empty string → 400 'Missing or empty url field', (4) Missing url key → 400, (5) Random text → 400, (6) No JSON body → 400 'Invalid request body'. Evidence file: VAL-INGEST-002-invalid-urls.txt",
+      "steps": [
+        {"action": "POST with non-YouTube URL", "expected": "400", "observed": "400 with descriptive error"},
+        {"action": "POST with youtube.com/watch (no v param)", "expected": "400", "observed": "400"},
+        {"action": "POST with empty URL", "expected": "400", "observed": "400"},
+        {"action": "POST with missing url field", "expected": "400", "observed": "400"},
+        {"action": "POST with plain text", "expected": "400", "observed": "400"},
+        {"action": "POST with no body", "expected": "400", "observed": "400"}
+      ]
+    },
+    "VAL-INGEST-003": {
+      "status": "pass",
+      "evidence": "POST /api/episodes with jNQXAC9IVRw returned 422 'No transcript available for this video'. GET /api/episodes confirms no Episode record created. No partial records persist.",
+      "details": "Valid YouTube URL (jNQXAC9IVRw - first YouTube video) correctly returns 422 when transcript is unavailable. The youtube-transcript library returns empty segments, which the code handles by returning 422 before any database records are created. Evidence file: VAL-INGEST-003-no-captions.txt",
+      "steps": [
+        {"action": "POST /api/episodes with jNQXAC9IVRw", "expected": "422", "observed": "422 'No transcript available for this video'"},
+        {"action": "GET /api/episodes to check for orphan records", "expected": "No episode with youtubeId jNQXAC9IVRw", "observed": "No orphan records found"}
+      ]
+    },
+    "VAL-INGEST-004": {
+      "status": "blocked",
+      "evidence": "Cannot test duplicate detection because first ingestion fails. youtube-transcript library cannot fetch transcripts from any real YouTube URL (returns 0 segments).",
+      "details": "Duplicate detection requires a successful first ingestion to test the 409 response on second POST. Since VAL-INGEST-001 is blocked, this assertion cannot be tested end-to-end. Code review confirms the duplicate check logic is correct: findUnique by youtubeId before ingestion, returns 409 if found. Unit tests confirm this behavior with mocked transcripts."
+    },
+    "VAL-INGEST-005": {
+      "status": "blocked",
+      "evidence": "Cannot test Podcaster creation/reuse because episode ingestion fails. youtube-transcript library returns empty segments for all real YouTube URLs.",
+      "details": "Podcaster auto-creation requires successful episode ingestion. Code review shows: channelUrl is derived as a placeholder from youtubeId, so each unique video gets its own Podcaster. Upsert by channelUrl ensures reuse for same video. Unit tests confirm this behavior."
+    },
+    "VAL-INGEST-006": {
+      "status": "blocked",
+      "evidence": "Cannot test chunk correctness because no episodes can be ingested with real transcripts. youtube-transcript library returns 0 segments.",
+      "details": "Chunk verification requires TranscriptChunk records from a successful ingestion. Code review of chunkTranscript() shows ~60-second windows, contiguous chunks, trailing segment capture. Unit tests verify this. Existing episode (chat-validator-episode-001) has 2 chunks with correct structure (startTime < endTime, contiguous, non-empty text)."
+    },
+    "VAL-INGEST-007": {
+      "status": "pass",
+      "evidence": "POST /api/episodes with fabricated URL (ZZZZZZZZZZZ) returned 422. GET /api/episodes confirms 0 episodes with youtubeId ZZZZZZZZZZZ. No orphan records.",
+      "details": "Tested with a fabricated-but-valid-looking YouTube URL (https://www.youtube.com/watch?v=ZZZZZZZZZZZ) where transcript fetch throws an error. The error is caught before the Prisma transaction, so no Episode, TranscriptChunk, or Podcaster records are created. Evidence file: VAL-INGEST-007-transactional-safety.txt",
+      "steps": [
+        {"action": "POST /api/episodes with ZZZZZZZZZZZ", "expected": "422, no records created", "observed": "422 'Could not fetch transcript', 0 orphan records"},
+        {"action": "GET /api/episodes filtered by ZZZZZZZZZZZ", "expected": "0 matches", "observed": "0 matches"}
+      ]
+    },
+    "VAL-INGEST-008": {
+      "status": "pass",
+      "evidence": "GET /api/episodes returned 200 with JSON array. Each item has id, title, youtubeUrl, podcaster.name. Format matches specification.",
+      "details": "Tested GET /api/episodes endpoint. Response is a JSON array with correct structure: id, title, youtubeUrl, podcaster (with name). With 1 episode in DB, ordering is trivially correct. Could not create multiple episodes to fully verify desc ordering due to transcript library issue. Evidence file: VAL-INGEST-008-episode-list.txt",
+      "steps": [
+        {"action": "GET /api/episodes", "expected": "200 with array of episodes", "observed": "200 with array of 1 episode, all required fields present"},
+        {"action": "Verify each item structure", "expected": "id, title, youtubeUrl, podcaster.name", "observed": "All fields present and non-null"}
+      ]
+    },
+    "VAL-INGEST-009": {
+      "status": "pass",
+      "evidence": "GET /api/episodes/chat-validator-episode-001 returned 200 with episode metadata, podcaster data, and transcriptChunks sorted by startTime asc.",
+      "details": "Tested with existing episode. Response includes: id, youtubeUrl, podcaster (with name), transcriptChunks (2 chunks). Chunks are sorted by startTime ascending. Each chunk has non-empty text, valid startTime and endTime (startTime < endTime). Evidence file: VAL-INGEST-009-episode-detail.txt",
+      "steps": [
+        {"action": "GET /api/episodes/chat-validator-episode-001", "expected": "200 with full data", "observed": "200 with episode + podcaster + 2 transcript chunks"},
+        {"action": "Verify chunk ordering", "expected": "Sorted by startTime asc", "observed": "Chunk 0: startTime=0, Chunk 1: startTime=60 — correctly sorted"},
+        {"action": "Verify chunk data", "expected": "Non-empty text, valid time ranges", "observed": "text_len=137 and 111, startTime < endTime for all chunks"}
+      ]
+    },
+    "VAL-INGEST-010": {
+      "status": "pass",
+      "evidence": "GET /api/episodes/{invalidId} returned 404 for all test cases: non-existent ID, random string, long string, special characters. Never returned 500.",
+      "details": "Tested 4 invalid ID variants: 'nonexistent-id-12345', 'abc', long string (43 chars), 'test%20space'. All returned 404 with {\"error\":\"Episode not found\"}. No 500 errors. Evidence file: VAL-INGEST-010-404-handling.txt",
+      "steps": [
+        {"action": "GET /api/episodes/nonexistent-id-12345", "expected": "404", "observed": "404"},
+        {"action": "GET /api/episodes/abc", "expected": "404", "observed": "404"},
+        {"action": "GET /api/episodes/aaa...aaa (43 chars)", "expected": "404", "observed": "404"},
+        {"action": "GET /api/episodes/test%20space", "expected": "404", "observed": "404"}
+      ]
+    },
+    "VAL-INGEST-011": {
+      "status": "blocked",
+      "evidence": "Cannot test profile build trigger because episode ingestion fails. youtube-transcript library cannot fetch real transcripts.",
+      "details": "Profile building is triggered as fire-and-forget after successful episode ingestion. Since no episodes can be ingested (VAL-INGEST-001 blocked), this cannot be tested end-to-end. Code review confirms: buildPodcasterProfile(episode.podcasterId) is called after transaction completes. POST /api/profiles/build endpoint exists for explicit triggering. Additionally, Ollama with tinyllama model availability was not verified since the prerequisite (ingested episode) could not be met."
+    }
+  },
+  "frictions": [
+    "youtube-transcript library v1.2.1 returns empty transcripts for ALL real YouTube URLs tested (20+ videos across categories). The YouTube timedtext API returns 200 with 0-byte body. This appears to be a library compatibility issue with current YouTube API (March 2026). The library needs updating or replacement.",
+    "Both suggested test URLs in the task (dQw4w9WgXcQ and jNQXAC9IVRw) fail to return transcripts, making them unusable for positive ingestion tests.",
+    "VAL-INGEST-008 and VAL-INGEST-009 were tested using existing seed data from another validator (chat-validator) since own test data could not be created. Response format is correct."
+  ],
+  "blockers": [
+    {
+      "description": "youtube-transcript library (v1.2.1) is unable to fetch transcripts from any real YouTube video. The YouTube timedtext API endpoint returns 200 with empty body for all format variants (default XML, srv1, srv2, srv3, vtt, json3). This blocks all assertions requiring successful episode ingestion: VAL-INGEST-001, VAL-INGEST-004, VAL-INGEST-005, VAL-INGEST-006, VAL-INGEST-011.",
+      "affectedAssertions": ["VAL-INGEST-001", "VAL-INGEST-004", "VAL-INGEST-005", "VAL-INGEST-006", "VAL-INGEST-011"],
+      "quickFixAttempted": "Tested 20+ YouTube video IDs across multiple categories (music, TED talks, tutorials, tech channels). Tried specifying language parameter. Tried all timedtext format variants directly. All return empty. Library update or replacement needed."
+    }
+  ],
+  "summary": "Tested 11 assertions: 6 passed (VAL-INGEST-002, 003, 007, 008, 009, 010), 5 blocked (VAL-INGEST-001, 004, 005, 006, 011). All blocks caused by youtube-transcript library v1.2.1 being unable to fetch transcripts from real YouTube URLs. The API code logic is sound — all error handling, validation, transactional safety, and response formats work correctly. The 5 blocked assertions all require successful transcript fetching as a prerequisite."
+}

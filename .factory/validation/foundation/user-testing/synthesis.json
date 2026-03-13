@@ -1,0 +1,71 @@
+{
+  "milestone": "foundation",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 19,
+    "passed": 13,
+    "failed": 0,
+    "blocked": 6
+  },
+  "passedAssertions": [
+    "VAL-INGEST-002",
+    "VAL-INGEST-003",
+    "VAL-INGEST-007",
+    "VAL-INGEST-008",
+    "VAL-INGEST-009",
+    "VAL-INGEST-010",
+    "VAL-CHAT-001",
+    "VAL-CHAT-002",
+    "VAL-CHAT-003",
+    "VAL-CHAT-004",
+    "VAL-CHAT-005",
+    "VAL-CHAT-006",
+    "VAL-CHAT-007"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [
+    {
+      "id": "VAL-INGEST-001",
+      "blockedBy": "youtube-transcript library v1.2.1 unable to fetch transcripts from any real YouTube URL. timedtext API returns 200 with empty body for all format variants. Library needs updating or replacement."
+    },
+    {
+      "id": "VAL-INGEST-004",
+      "blockedBy": "Cannot test duplicate detection — first ingestion fails due to youtube-transcript library issue (same root cause as VAL-INGEST-001)"
+    },
+    {
+      "id": "VAL-INGEST-005",
+      "blockedBy": "Cannot test Podcaster creation/reuse — episode ingestion fails due to youtube-transcript library issue (same root cause as VAL-INGEST-001)"
+    },
+    {
+      "id": "VAL-INGEST-006",
+      "blockedBy": "Cannot test chunk correctness with real transcripts — episode ingestion fails due to youtube-transcript library issue (same root cause as VAL-INGEST-001)"
+    },
+    {
+      "id": "VAL-INGEST-011",
+      "blockedBy": "Cannot test profile build trigger — episode ingestion fails due to youtube-transcript library issue (same root cause as VAL-INGEST-001)"
+    },
+    {
+      "id": "VAL-CHAT-011",
+      "blockedBy": "Cannot make Ollama unreachable to test 503 response per AGENTS.md isolation rules. Code review confirms the 503 handler exists in route.ts catch block."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added Flow Validator Guidance: API section with testing tool, server, database, isolation rules, and known issues",
+      "source": "setup"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Documented youtube-transcript library v1.2.1 issue and DB seeding workaround for chat testing",
+      "source": "flow-report"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Updated OLLAMA_MODEL reference from llama3.1 to tinyllama for testing compatibility",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}

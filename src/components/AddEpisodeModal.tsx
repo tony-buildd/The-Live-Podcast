@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface AddEpisodeModalProps {
   open: boolean;
@@ -106,14 +107,19 @@ export default function AddEpisodeModal({ open, onClose }: AddEpisodeModalProps)
         });
 
         if (res.status === 201) {
+          toast.success("Episode added successfully!");
           onClose();
           router.push("/library");
         } else {
           const data = await res.json().catch(() => null);
-          setError(data?.error ?? "Something went wrong. Please try again.");
+          const msg = data?.error ?? "Something went wrong. Please try again.";
+          setError(msg);
+          toast.error(msg);
         }
       } catch {
-        setError("Network error. Please check your connection and try again.");
+        const msg = "Network error. Please check your connection and try again.";
+        setError(msg);
+        toast.error(msg);
       } finally {
         setLoading(false);
       }

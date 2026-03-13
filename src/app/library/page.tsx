@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import EpisodeCard from "@/components/EpisodeCard";
 
 interface Podcaster {
@@ -40,9 +41,11 @@ export default function LibraryPage() {
         if (res.ok) {
           const data = (await res.json()) as Episode[];
           setEpisodes(data);
+        } else {
+          toast.error("Failed to load episodes. Please try again.");
         }
       } catch {
-        // Silently handle fetch errors
+        toast.error("Failed to load episodes. Please try again.");
       } finally {
         setLoading(false);
       }

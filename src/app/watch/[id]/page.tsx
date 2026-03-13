@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 import YouTubePlayer, {
   type YouTubePlayerHandle,
 } from "@/components/YouTubePlayer";
@@ -48,6 +49,7 @@ export default function WatchPage() {
         const res = await fetch(`/api/episodes/${params.id}`);
         if (!res.ok) {
           setError(true);
+          toast.error("Failed to load episode.");
           setLoading(false);
           return;
         }
@@ -55,6 +57,7 @@ export default function WatchPage() {
         setEpisode(data);
       } catch {
         setError(true);
+        toast.error("Failed to load episode. Please check your connection.");
       } finally {
         setLoading(false);
       }
@@ -125,8 +128,16 @@ export default function WatchPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" role="status" aria-label="Loading" />
+      <div className="min-h-screen bg-white dark:bg-zinc-950">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          {/* Title skeleton */}
+          <div className="mb-4 h-6 w-2/3 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="mb-6 h-4 w-1/4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+          {/* Player skeleton */}
+          <div className="aspect-video w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
+          {/* Button skeleton */}
+          <div className="mt-4 h-10 w-28 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+        </div>
       </div>
     );
   }

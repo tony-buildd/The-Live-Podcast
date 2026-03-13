@@ -10,19 +10,24 @@
     "test": "vitest run --reporter=verbose"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.1",
     "@huggingface/transformers": "^3.8.1",
     "@prisma/adapter-better-sqlite3": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "bcryptjs": "^3.0.3",
     "next": "16.1.6",
+    "next-auth": "^4.24.13",
     "prisma": "^7.5.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "sonner": "^2.0.7",
     "uuid": "^13.0.0",
     "vectra": "^0.12.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@testing-library/react": "^16.3.2",
+    "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -1,6 +1,6 @@
 ---
 name: frontend-worker
-description: Implements React components, pages, and client-side features for CoPod using Next.js App Router with Tailwind CSS.
+description: Implements React components, pages, and client-side features for TonyPodcast using Next.js App Router with Tailwind CSS.
 ---
 
 # Frontend Worker
@@ -20,7 +20,7 @@ Use for features involving:
 ## Design Principles (from frontend-design skill)
 
 Before writing code, consider:
-- **Tone**: CoPod should feel modern, conversational, and focused. Dark theme friendly.
+- **Tone**: TonyPodcast should feel modern, conversational, and focused. Dark theme friendly.
 - **Spacing**: Use Tailwind's spacing scale (multiples of 4px). No magic numbers.
 - **Typography**: Clear hierarchy — heading sizes for page titles, section headings, body text.
 - **Color palette**: Primary accent color, neutrals, semantic colors (error red, success green).

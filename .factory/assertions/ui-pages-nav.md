@@ -1,11 +1,11 @@
-# CoPod UI / Pages / Navigation — Behavioral Assertions
+# TonyPodcast UI / Pages / Navigation — Behavioral Assertions
 
 ---
 
 ## Landing Page (/)
 
 ### VAL-UI-001: Landing page renders hero section
-The landing page at `/` renders a visible hero section containing the CoPod branding/logo, a headline, and a sub-headline or tagline describing the product.
+The landing page at `/` renders a visible hero section containing the TonyPodcast branding/logo, a headline, and a sub-headline or tagline describing the product.
 **Pass condition:** Hero section is visible on page load with branding, headline text, and tagline.
 **Evidence:** DOM contains a hero container with heading elements and brand imagery.
 
@@ -21,7 +21,7 @@ Clicking the "Add a podcast" CTA on the landing page opens the AddEpisodeModal d
 
 ### VAL-UI-004: Landing page is accessible and has correct metadata
 The landing page has a descriptive `<title>`, proper heading hierarchy (single h1), and all images have alt text.
-**Pass condition:** Document title is set to a CoPod-specific string; exactly one `<h1>` exists; no images lack `alt`.
+**Pass condition:** Document title is set to a TonyPodcast-specific string; exactly one `<h1>` exists; no images lack `alt`.
 **Evidence:** Inspect `document.title`, query `h1` count, and audit `img[alt]`.
 
 ### VAL-UI-005: Landing page responsive layout — mobile

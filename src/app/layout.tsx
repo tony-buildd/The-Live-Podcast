@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CoPod",
+  title: "TonyPodcast",
   description: "Interactive AI Podcast Companion",
 };
 

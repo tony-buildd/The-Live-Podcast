@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd /Users/minhthiennguyen/Desktop/copod
+cd /Users/minhthiennguyen/Desktop/tony-podcast
 
 # Install dependencies (idempotent)
 npm install

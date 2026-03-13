@@ -1,6 +1,6 @@
 # Testing Patterns
 
-Discovered patterns and conventions for writing tests in the CoPod project.
+Discovered patterns and conventions for writing tests in the TonyPodcast project.
 
 **What belongs here:** Test setup patterns, database handling, known quirks with test infrastructure.
 **What does NOT belong here:** Test results or CI configuration.

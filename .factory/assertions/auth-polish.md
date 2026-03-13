@@ -25,11 +25,11 @@ A visitor attempts to sign in with an email that does not exist. The same generi
 Evidence: Compare error message with VAL-POLISH-005; confirm no session cookie.
 
 ### VAL-POLISH-007: Sign in with Google OAuth — happy path
-A user clicks "Sign in with Google" on the login page. They are redirected to Google's OAuth consent screen. After granting consent, they are redirected back to CoPod, a session is created, and a `User` row exists (created if first-time, reused if returning). The user lands on the authenticated home/library page.
+A user clicks "Sign in with Google" on the login page. They are redirected to Google's OAuth consent screen. After granting consent, they are redirected back to TonyPodcast, a session is created, and a `User` row exists (created if first-time, reused if returning). The user lands on the authenticated home/library page.
 Evidence: Verify the OAuth redirect flow (302 to Google, callback URL); check `User` table; verify session cookie.
 
 ### VAL-POLISH-008: Sign in with Google OAuth — cancelled/denied
-A user clicks "Sign in with Google" but cancels or denies consent on Google's page. They are redirected back to the CoPod sign-in page with an appropriate error toast (e.g., "Sign in cancelled"). No session is created.
+A user clicks "Sign in with Google" but cancels or denies consent on Google's page. They are redirected back to the TonyPodcast sign-in page with an appropriate error toast (e.g., "Sign in cancelled"). No session is created.
 Evidence: Verify redirect back to sign-in page; confirm error toast is displayed; confirm no session cookie.
 
 ### VAL-POLISH-009: Sign out
@@ -49,7 +49,7 @@ An authenticated user refreshes the browser on any page. The session is preserve
 Evidence: Sign in, note session cookie, refresh the page; verify the session endpoint still returns user data; confirm the UI shows the authenticated state.
 
 ### VAL-POLISH-013: Auth state persists across tabs
-An authenticated user opens a new browser tab and navigates to CoPod. The session from the original tab carries over; the user is authenticated in the new tab without signing in again.
+An authenticated user opens a new browser tab and navigates to TonyPodcast. The session from the original tab carries over; the user is authenticated in the new tab without signing in again.
 Evidence: Open a new tab to a protected route; verify no redirect to sign-in; confirm session data is present.
 
 ### VAL-POLISH-014: Toast notification on failed API call

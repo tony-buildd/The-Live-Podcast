@@ -43,6 +43,16 @@ describe("middleware auth gate", () => {
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
   });
 
+  it("blocks unauthenticated POST requests to other protected API routes", async () => {
+    const auth = makeAuth(null);
+
+    const episodesRes = await runMiddleware(auth, request("POST", "/api/episodes"));
+    expect(episodesRes.status).toBe(401);
+
+    const profilesRes = await runMiddleware(auth, request("POST", "/api/profiles/build"));
+    expect(profilesRes.status).toBe(401);
+  });
+
   it("allows authenticated POST requests to protected API routes", async () => {
     const auth = makeAuth("user_123");
     const res = await runMiddleware(auth, request("POST", "/api/chat"));

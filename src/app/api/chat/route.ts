@@ -1,26 +1,34 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { getLLMProvider } from "@/lib/llm";
-import { buildConversationContext } from "@/lib/memory/context-builder";
 import type { Message } from "@/lib/llm/types";
+import { getConvexClient, api } from "@/lib/convex/client";
 
 interface ChatRequestBody {
   episodeId?: string;
   podcasterId?: string;
-  userId?: string;
   timestamp?: number;
   message?: string;
   conversationId?: string;
 }
 
-/**
- * POST /api/chat
- *
- * Core chat endpoint. Accepts JSON body with episodeId, podcasterId, userId,
- * timestamp, message, and optional conversationId. Streams LLM response as SSE.
- */
 export async function POST(request: Request): Promise<Response> {
-  // Parse request body
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const convex = getConvexClient();
+  const clerkUser = await currentUser();
+  await convex
+    .mutation(api.users.ensureUser, {
+      clerkUserId: userId,
+      email: clerkUser?.emailAddresses[0]?.emailAddress,
+      name: clerkUser?.fullName ?? undefined,
+      imageUrl: clerkUser?.imageUrl,
+    })
+    .catch(() => undefined);
+
   let body: ChatRequestBody;
   try {
     body = (await request.json()) as ChatRequestBody;
@@ -38,13 +46,11 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // Validate required fields
-  const { episodeId, podcasterId, userId, timestamp, message, conversationId } = body;
+  const { episodeId, podcasterId, timestamp, message, conversationId } = body;
 
   const missingFields: string[] = [];
   if (!episodeId) missingFields.push("episodeId");
   if (!podcasterId) missingFields.push("podcasterId");
-  if (!userId) missingFields.push("userId");
   if (timestamp === undefined || timestamp === null) missingFields.push("timestamp");
   if (message === undefined || message === null) missingFields.push("message");
 
@@ -55,7 +61,6 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // Validate message is not empty/whitespace
   if (typeof message !== "string" || message.trim() === "") {
     return NextResponse.json(
       { error: "Message cannot be empty or whitespace-only" },
@@ -63,81 +68,58 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // If conversationId provided, verify it exists
-  let activeConversationId = conversationId;
-  if (conversationId) {
-    const existingConversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
+  let activeConversationId: string;
+  try {
+    const start = await convex.mutation(api.chat.startConversation, {
+      userId,
+      episodeId,
+      podcasterId,
+      timestamp,
+      message,
+      conversationId,
     });
-    if (!existingConversation) {
-      return NextResponse.json(
-        { error: "Conversation not found" },
-        { status: 400 }
-      );
-    }
+    activeConversationId = String(start.conversationId);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Conversation setup failed";
+    const status = errorMessage.includes("not found") ? 400 : 403;
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 
-  // If no conversationId, create a new Conversation
-  if (!activeConversationId) {
-    const newConversation = await prisma.conversation.create({
-      data: {
-        userId: userId!,
-        podcasterId: podcasterId!,
-        episodeId: episodeId!,
-        timestampInEpisode: timestamp!,
-      },
-    });
-    activeConversationId = newConversation.id;
-  }
-
-  // Save user message BEFORE streaming
-  await prisma.conversationMessage.create({
-    data: {
-      conversationId: activeConversationId,
-      role: "user",
-      content: message!.trim(),
-    },
+  const context = await convex.action(api.memory.getConversationContext, {
+    episodeId,
+    podcasterId,
+    userId,
+    currentTimestamp: timestamp,
+    userMessage: message,
   });
 
-  // Build conversation context (system prompt)
-  const systemMessages = await buildConversationContext({
-    episodeId: episodeId!,
-    podcasterId: podcasterId!,
-    userId: userId!,
-    currentTimestamp: timestamp!,
+  const systemMessages: Message[] = [{
+    role: "system",
+    content: buildSystemPrompt(context),
+  }];
+
+  const priorMessages = await convex.query(api.chat.listConversationMessages, {
+    conversationId: activeConversationId,
   });
 
-  // Fetch prior messages for multi-turn history
-  const priorMessages = await prisma.conversationMessage.findMany({
-    where: { conversationId: activeConversationId },
-    orderBy: { createdAt: "asc" },
-  });
-
-  // Build full message array: system prompt + prior messages
   const llmMessages: Message[] = [
     ...systemMessages,
-    ...priorMessages.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
+    ...priorMessages,
   ];
 
-  // Try to stream from LLM
   const llm = getLLMProvider();
   let stream: AsyncGenerator<string, void, unknown>;
   try {
     stream = llm.stream(llmMessages);
-    // Try to get the first token to detect connection errors early
+
     const first = await stream.next();
     if (first.done) {
-      // Empty response from LLM — save empty assistant message and return
-      await prisma.conversationMessage.create({
-        data: {
-          conversationId: activeConversationId,
-          role: "assistant",
-          content: "",
-        },
+      await convex.mutation(api.chat.appendAssistantMessage, {
+        conversationId: activeConversationId,
+        content: "",
       });
+
       const emptyReadable = new ReadableStream({
         start(controller) {
           const encoder = new TextEncoder();
@@ -156,7 +138,6 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    // We got a first token; now set up the full SSE stream
     const firstToken = first.value;
     const convoId = activeConversationId;
 
@@ -166,31 +147,23 @@ export async function POST(request: Request): Promise<Response> {
         let fullContent = "";
 
         try {
-          // Send metadata event with conversationId
           controller.enqueue(
             encoder.encode(`data: {"conversationId":"${convoId}"}\n\n`)
           );
 
-          // Send first token
           fullContent += firstToken;
           controller.enqueue(encoder.encode(`data: ${firstToken}\n\n`));
 
-          // Stream remaining tokens
           for await (const token of stream) {
             fullContent += token;
             controller.enqueue(encoder.encode(`data: ${token}\n\n`));
           }
 
-          // Send done event
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 
-          // Save assistant message with full content
-          await prisma.conversationMessage.create({
-            data: {
-              conversationId: convoId,
-              role: "assistant",
-              content: fullContent,
-            },
+          await convex.mutation(api.chat.appendAssistantMessage, {
+            conversationId: convoId,
+            content: fullContent,
           });
         } catch {
           controller.enqueue(encoder.encode("data: [ERROR]\n\n"));
@@ -214,4 +187,61 @@ export async function POST(request: Request): Promise<Response> {
       { status: 503 }
     );
   }
+}
+
+function buildSystemPrompt(context: {
+  podcaster: { id: string; name: string } | null;
+  podcasterProfile: {
+    summaryText: string;
+    topics: string[];
+    personalityTraits: string[];
+    speakingStyle?: string;
+  } | null;
+  userMemory: {
+    summaryOfPastInteractions: string;
+    keyTopicsDiscussed: string[];
+  } | null;
+  transcriptContext: string;
+  relatedContent: string[];
+  currentTimestampLabel: string;
+}): string {
+  let systemPrompt = `You are an AI representation of ${context.podcaster?.name || "the podcaster"}. `;
+  systemPrompt += "You embody their personality, knowledge, and conversational style. ";
+  systemPrompt += "When the listener pauses the podcast to ask a question, respond as the podcaster would.\n\n";
+
+  if (context.podcasterProfile) {
+    systemPrompt += "## Your Profile\n";
+    systemPrompt += `${context.podcasterProfile.summaryText}\n`;
+    if (context.podcasterProfile.speakingStyle) {
+      systemPrompt += `Speaking style: ${context.podcasterProfile.speakingStyle}\n`;
+    }
+    if (context.podcasterProfile.topics.length > 0) {
+      systemPrompt += `Topics you frequently discuss: ${context.podcasterProfile.topics.join(", ")}\n`;
+    }
+    systemPrompt += "\n";
+  }
+
+  if (context.userMemory) {
+    systemPrompt += "## Your History with This Listener\n";
+    systemPrompt += `${context.userMemory.summaryOfPastInteractions}\n`;
+    if (context.userMemory.keyTopicsDiscussed.length > 0) {
+      systemPrompt += `Topics discussed before: ${context.userMemory.keyTopicsDiscussed.join(", ")}\n`;
+    }
+    systemPrompt += "\n";
+  }
+
+  systemPrompt += "## What You Were Just Talking About\n";
+  systemPrompt += `The listener paused at ${context.currentTimestampLabel}.\n`;
+  systemPrompt += `Recent transcript context: "${context.transcriptContext}"\n\n`;
+
+  if (context.relatedContent.length > 0) {
+    systemPrompt += "## Related Content\n";
+    for (const item of context.relatedContent) {
+      systemPrompt += `- "${item}"\n`;
+    }
+    systemPrompt += "\n";
+  }
+
+  systemPrompt += "Answer based on this context. Stay in character. Be conversational and helpful.";
+  return systemPrompt;
 }

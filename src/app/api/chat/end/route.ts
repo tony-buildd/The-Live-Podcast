@@ -1,22 +1,18 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { updateUserPodcasterMemory } from "@/lib/memory/profile-builder";
+import { auth } from "@clerk/nextjs/server";
+import { getConvexClient, api } from "@/lib/convex/client";
 
 interface ChatEndRequestBody {
   conversationId?: string;
-  userId?: string;
   podcasterId?: string;
 }
 
-/**
- * POST /api/chat/end
- *
- * End a conversation and persist user-podcaster memory.
- * Accepts conversationId, userId, podcasterId.
- * If the conversation has zero messages, this is a no-op.
- */
 export async function POST(request: Request): Promise<Response> {
-  // Parse request body
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: ChatEndRequestBody;
   try {
     body = (await request.json()) as ChatEndRequestBody;
@@ -34,12 +30,10 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // Validate required fields
-  const { conversationId, userId, podcasterId } = body;
+  const { conversationId, podcasterId } = body;
 
   const missingFields: string[] = [];
   if (!conversationId) missingFields.push("conversationId");
-  if (!userId) missingFields.push("userId");
   if (!podcasterId) missingFields.push("podcasterId");
 
   if (missingFields.length > 0) {
@@ -49,24 +43,19 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // Check if conversation has any messages
-  const messageCount = await prisma.conversationMessage.count({
-    where: { conversationId: conversationId! },
-  });
+  try {
+    const convex = getConvexClient();
+    const result = await convex.action(api.chat.endConversation, {
+      conversationId,
+      userId,
+      podcasterId,
+    });
 
-  // If zero messages, no-op — just return 200
-  if (messageCount === 0) {
-    return NextResponse.json(
-      { message: "No messages in conversation, nothing to persist" },
-      { status: 200 }
-    );
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to end conversation";
+    const status = message.includes("not found") ? 404 : 403;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  // Call updateUserPodcasterMemory
-  await updateUserPodcasterMemory(userId!, podcasterId!, conversationId!);
-
-  return NextResponse.json(
-    { message: "Memory updated successfully" },
-    { status: 200 }
-  );
 }

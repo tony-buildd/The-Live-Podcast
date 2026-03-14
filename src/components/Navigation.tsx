@@ -1,13 +1,16 @@
 "use client";
 
+import {
+  SignInButton,
+  UserButton,
+  useUser,
+} from "@clerk/nextjs";
 import Link from "next/link";
-import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 
 export default function Navigation() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { data: session, status } = useSession();
-  const isAuthenticated = status === "authenticated";
+  const { isLoaded, isSignedIn, user } = useUser();
 
   return (
     <nav className="sticky top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -28,29 +31,25 @@ export default function Navigation() {
             Library
           </Link>
 
-          {isAuthenticated ? (
+          {isSignedIn && (
             <div className="flex items-center gap-4">
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                {session.user?.name || session.user?.email}
+                {user?.fullName || user?.primaryEmailAddress?.emailAddress}
               </span>
-              <button
-                type="button"
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50 dark:focus-visible:outline-zinc-50"
-              >
-                Sign Out
-              </button>
+              <UserButton />
             </div>
-          ) : (
-            status !== "loading" && (
-              <Link
-                href="/auth/signin"
-                className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50 dark:focus-visible:outline-zinc-50"
-              >
-                Sign In
-              </Link>
-            )
           )}
+
+          {!isSignedIn && isLoaded && (
+              <SignInButton mode="modal" fallbackRedirectUrl="/library">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50 dark:focus-visible:outline-zinc-50"
+                >
+                  Sign In
+                </button>
+              </SignInButton>
+            )}
         </div>
 
         {/* Mobile menu button */}
@@ -106,24 +105,16 @@ export default function Navigation() {
             Library
           </Link>
 
-          {isAuthenticated ? (
-            <>
-              <span className="block px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400">
-                {session.user?.name || session.user?.email}
+          {isSignedIn && (
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                {user?.fullName || user?.primaryEmailAddress?.emailAddress}
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  signOut({ callbackUrl: "/" });
-                }}
-                className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
-              >
-                Sign Out
-              </button>
-            </>
-          ) : (
-            status !== "loading" && (
+              <UserButton />
+            </div>
+          )}
+
+          {!isSignedIn && isLoaded && (
               <Link
                 href="/auth/signin"
                 className="block rounded-md px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
@@ -131,8 +122,7 @@ export default function Navigation() {
               >
                 Sign In
               </Link>
-            )
-          )}
+            )}
         </div>
       )}
     </nav>

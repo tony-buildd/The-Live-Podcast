@@ -1,14 +1,13 @@
 commands:
   install: npm install
   dev: node node_modules/next/dist/bin/next dev --port 3100
+  convex:dev: npx convex dev
+  convex:deploy: npx convex deploy
   build: node node_modules/next/dist/bin/next build
   typecheck: npx tsc --noEmit
   lint: npx eslint .
   test: npx vitest run --reporter=verbose
   test:watch: npx vitest --reporter=verbose
-  prisma:generate: npx prisma generate
-  prisma:migrate: npx prisma migrate dev
-  prisma:studio: npx prisma studio
 
 services:
   web:

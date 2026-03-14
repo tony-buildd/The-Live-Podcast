@@ -106,7 +106,6 @@ export default function WatchPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversationId,
-            userId: "default-user",
             podcasterId: episode.podcaster.id,
           }),
         });
@@ -289,6 +288,7 @@ export default function WatchPage() {
                     podcasterId={episode.podcaster.id}
                     currentTimestamp={chatTimestamp}
                     onMicError={handleMicError}
+                    onConversationIdChange={setConversationId}
                   />
                 </div>
               ) : (
@@ -297,6 +297,7 @@ export default function WatchPage() {
                     episodeId={episode.id}
                     podcasterId={episode.podcaster.id}
                     currentTimestamp={chatTimestamp}
+                    onConversationIdChange={setConversationId}
                   />
                 </div>
               )}

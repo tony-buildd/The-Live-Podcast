@@ -9,19 +9,17 @@ type VoiceState = "idle" | "listening" | "processing" | "speaking";
 interface VoiceConversationProps {
   episodeId: string;
   podcasterId: string;
-  userId?: string;
   currentTimestamp: number;
   onMicError?: () => void;
+  onConversationIdChange?: (conversationId: string | null) => void;
 }
-
-const DEFAULT_USER_ID = "default-user";
 
 export default function VoiceConversation({
   episodeId,
   podcasterId,
-  userId = DEFAULT_USER_ID,
   currentTimestamp,
   onMicError,
+  onConversationIdChange,
 }: VoiceConversationProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [muted, setMuted] = useState(false);
@@ -42,7 +40,6 @@ export default function VoiceConversation({
         body: JSON.stringify({
           episodeId,
           podcasterId,
-          userId,
           timestamp: currentTimestamp,
           message,
           conversationId,
@@ -76,6 +73,7 @@ export default function VoiceConversation({
             const parsed = JSON.parse(data) as { conversationId?: string };
             if (parsed.conversationId) {
               setConversationId(parsed.conversationId);
+              onConversationIdChange?.(parsed.conversationId);
               continue;
             }
           } catch {
@@ -88,7 +86,7 @@ export default function VoiceConversation({
 
       return fullResponse;
     },
-    [episodeId, podcasterId, userId, currentTimestamp, conversationId],
+    [episodeId, podcasterId, currentTimestamp, conversationId, onConversationIdChange],
   );
 
   // Start listening via speech recognition

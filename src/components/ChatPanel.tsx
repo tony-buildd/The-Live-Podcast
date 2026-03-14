@@ -18,17 +18,15 @@ interface ChatMessage {
 interface ChatPanelProps {
   episodeId: string;
   podcasterId: string;
-  userId?: string;
   currentTimestamp: number;
+  onConversationIdChange?: (conversationId: string | null) => void;
 }
-
-const DEFAULT_USER_ID = "default-user";
 
 export default function ChatPanel({
   episodeId,
   podcasterId,
-  userId = DEFAULT_USER_ID,
   currentTimestamp,
+  onConversationIdChange,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -77,7 +75,6 @@ export default function ChatPanel({
           body: JSON.stringify({
             episodeId,
             podcasterId,
-            userId,
             timestamp: currentTimestamp,
             message: userMessage,
             conversationId,
@@ -125,6 +122,7 @@ export default function ChatPanel({
               const parsed = JSON.parse(data) as { conversationId?: string };
               if (parsed.conversationId) {
                 setConversationId(parsed.conversationId);
+                onConversationIdChange?.(parsed.conversationId);
                 continue;
               }
             } catch {
@@ -172,7 +170,7 @@ export default function ChatPanel({
         setStreaming(false);
       }
     },
-    [episodeId, podcasterId, userId, currentTimestamp, conversationId],
+    [episodeId, podcasterId, currentTimestamp, conversationId, onConversationIdChange],
   );
 
   const sendMessage = useCallback(async () => {

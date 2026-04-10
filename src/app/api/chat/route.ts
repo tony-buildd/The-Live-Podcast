@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { getLLMProvider } from "@/lib/llm";
 import type { Message } from "@/lib/llm/types";
-import { getConvexClient, api } from "@/lib/convex/client";
+import {
+  getConvexClient,
+  api,
+  isConvexConfigurationError,
+} from "@/lib/convex/client";
 
 interface ChatRequestBody {
   episodeId?: string;
@@ -17,17 +21,6 @@ export async function POST(request: Request): Promise<Response> {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const convex = getConvexClient();
-  const clerkUser = await currentUser();
-  await convex
-    .mutation(api.users.ensureUser, {
-      clerkUserId: userId,
-      email: clerkUser?.emailAddresses[0]?.emailAddress,
-      name: clerkUser?.fullName ?? undefined,
-      imageUrl: clerkUser?.imageUrl,
-    })
-    .catch(() => undefined);
 
   let body: ChatRequestBody;
   try {
@@ -47,6 +40,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const { episodeId, podcasterId, timestamp, message, conversationId } = body;
+  const normalizedConversationId =
+    typeof conversationId === "string" && conversationId.trim() !== ""
+      ? conversationId
+      : undefined;
 
   const missingFields: string[] = [];
   if (!episodeId) missingFields.push("episodeId");
@@ -68,6 +65,28 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  let convex;
+  try {
+    convex = getConvexClient();
+    const clerkUser = await currentUser();
+    await convex
+      .mutation(api.users.ensureUser, {
+        clerkUserId: userId,
+        email: clerkUser?.emailAddresses[0]?.emailAddress,
+        name: clerkUser?.fullName ?? undefined,
+        imageUrl: clerkUser?.imageUrl,
+      })
+      .catch(() => undefined);
+  } catch (error) {
+    if (isConvexConfigurationError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Conversation setup failed";
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
+
   let activeConversationId: string;
   try {
     const start = await convex.mutation(api.chat.startConversation, {
@@ -76,7 +95,7 @@ export async function POST(request: Request): Promise<Response> {
       podcasterId,
       timestamp,
       message,
-      conversationId,
+      conversationId: normalizedConversationId,
     });
     activeConversationId = String(start.conversationId);
   } catch (error) {
@@ -181,9 +200,11 @@ export async function POST(request: Request): Promise<Response> {
         Connection: "keep-alive",
       },
     });
-  } catch {
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "AI service is currently unavailable.";
     return NextResponse.json(
-      { error: "AI service is currently unavailable. Please try again later." },
+      { error: message },
       { status: 503 }
     );
   }

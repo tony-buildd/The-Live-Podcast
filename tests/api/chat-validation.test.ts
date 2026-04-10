@@ -40,6 +40,7 @@ vi.mock("@/lib/convex/client", () => ({
     action: actionMock,
     query: queryMock,
   }),
+  isConvexConfigurationError: () => false,
 }));
 
 vi.mock("@/lib/llm", () => ({

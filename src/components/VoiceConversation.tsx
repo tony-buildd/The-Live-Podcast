@@ -12,6 +12,7 @@ interface VoiceConversationProps {
   currentTimestamp: number;
   onMicError?: () => void;
   onConversationIdChange?: (conversationId: string | null) => void;
+  onUserInteraction?: () => void;
 }
 
 export default function VoiceConversation({
@@ -20,6 +21,7 @@ export default function VoiceConversation({
   currentTimestamp,
   onMicError,
   onConversationIdChange,
+  onUserInteraction,
 }: VoiceConversationProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [muted, setMuted] = useState(false);
@@ -184,8 +186,9 @@ export default function VoiceConversation({
   // Activate voice: start listening
   const activate = useCallback(() => {
     if (voiceState !== "idle") return;
+    onUserInteraction?.();
     startListening();
-  }, [voiceState, startListening]);
+  }, [voiceState, startListening, onUserInteraction]);
 
   return (
     <div

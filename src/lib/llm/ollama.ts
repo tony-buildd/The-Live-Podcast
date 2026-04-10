@@ -28,7 +28,16 @@ export class OllamaProvider implements LLMProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+      let detail = "";
+      try {
+        const body = (await response.json()) as { error?: string };
+        detail = body.error ? ` - ${body.error}` : "";
+      } catch {
+        // ignore body parse issues
+      }
+      throw new Error(
+        `Ollama API error: ${response.status} ${response.statusText}${detail}`,
+      );
     }
 
     const data = await response.json();
@@ -54,7 +63,16 @@ export class OllamaProvider implements LLMProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+      let detail = "";
+      try {
+        const body = (await response.json()) as { error?: string };
+        detail = body.error ? ` - ${body.error}` : "";
+      } catch {
+        // ignore body parse issues
+      }
+      throw new Error(
+        `Ollama API error: ${response.status} ${response.statusText}${detail}`,
+      );
     }
 
     const reader = response.body?.getReader();

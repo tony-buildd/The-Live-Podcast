@@ -100,14 +100,24 @@ export default function AddEpisodeModal({ open, onClose }: AddEpisodeModalProps)
 
       setLoading(true);
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60_000);
         const res = await fetch("/api/episodes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: trimmed }),
-        });
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId));
 
         if (res.status === 201) {
           toast.success("Episode added successfully!");
+          onClose();
+          router.push("/library");
+        } else if (res.status === 409) {
+          const msg = "This episode is already in your Library.";
+          toast.message(msg, {
+            description: "Check Library to continue.",
+          });
           onClose();
           router.push("/library");
         } else {
@@ -116,8 +126,11 @@ export default function AddEpisodeModal({ open, onClose }: AddEpisodeModalProps)
           setError(msg);
           toast.error(msg);
         }
-      } catch {
-        const msg = "Network error. Please check your connection and try again.";
+      } catch (err) {
+        const isAbortError = err instanceof Error && err.name === "AbortError";
+        const msg = isAbortError
+          ? "Request timed out after 60 seconds. Please check backend services and try again."
+          : "Network error. Please check your connection and try again.";
         setError(msg);
         toast.error(msg);
       } finally {

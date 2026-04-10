@@ -6,7 +6,7 @@ import {
   internalQuery,
   query,
 } from "./_generated/server";
-import { chunkTranscript, extractYouTubeId, fetchTranscript } from "./transcript";
+import { chunkTranscript, extractYouTubeId } from "./transcript";
 
 export const listEpisodes = query({
   args: {},
@@ -81,9 +81,16 @@ export const getEpisodeDetail = query({
   },
 });
 
+const segmentValidator = v.object({
+  text: v.string(),
+  offset: v.number(),
+  duration: v.number(),
+});
+
 export const ingestEpisode = action({
   args: {
     url: v.string(),
+    segments: v.array(segmentValidator),
   },
   handler: async (ctx, args) => {
     const trimmedUrl = args.url.trim();
@@ -105,12 +112,11 @@ export const ingestEpisode = action({
       );
     }
 
-    const segments = await fetchTranscript(youtubeId);
-    if (!segments || segments.length === 0) {
+    if (args.segments.length === 0) {
       throw new ConvexError("No transcript available for this video");
     }
 
-    const chunks = chunkTranscript(segments);
+    const chunks = chunkTranscript(args.segments);
     const channelUrl = `https://www.youtube.com/channel/placeholder-${youtubeId}`;
 
     const podcasterId = await ctx.runMutation(internal.episodes.upsertPodcaster, {
@@ -126,15 +132,15 @@ export const ingestEpisode = action({
       chunks,
     });
 
-    await ctx.runAction(internal.memory.reindexEpisodeChunks, {
+    // Schedule both as background jobs so ingest returns immediately.
+    // Embeddings and profile will be ready shortly after.
+    await ctx.scheduler.runAfter(0, internal.memory.reindexEpisodeChunks, {
       episodeId,
     });
 
-    await ctx
-      .runAction(internal.profiles.rebuildPodcasterProfile, {
-        podcasterId,
-      })
-      .catch(() => undefined);
+    await ctx.scheduler.runAfter(0, internal.profiles.rebuildPodcasterProfile, {
+      podcasterId,
+    });
 
     const episode = await ctx.runQuery(api.episodes.getEpisodeDetail, {
       episodeId,

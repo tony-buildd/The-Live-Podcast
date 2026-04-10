@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getConvexClient, api } from "@/lib/convex/client";
+import {
+  getConvexClient,
+  api,
+  isConvexConfigurationError,
+} from "@/lib/convex/client";
 
 export async function GET(
   _request: Request,
@@ -28,7 +32,11 @@ export async function GET(
     }
 
     return NextResponse.json(episode, { status: 200 });
-  } catch {
+  } catch (error) {
+    if (isConvexConfigurationError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
     return NextResponse.json(
       { error: "Episode not found" },
       { status: 404 }

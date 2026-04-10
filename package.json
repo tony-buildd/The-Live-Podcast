@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "vitest run --reporter=verbose",
     "convex:dev": "convex dev",
-    "convex:codegen": "convex codegen"
+    "convex:codegen": "convex codegen",
+    "transcript:dev": "cd transcript-service && uvicorn main:app --host 127.0.0.1 --port 8765 --reload",
+    "transcript:install": "cd transcript-service && pip install -r requirements.txt"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.4",

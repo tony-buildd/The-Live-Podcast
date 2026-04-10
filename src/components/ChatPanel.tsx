@@ -20,6 +20,7 @@ interface ChatPanelProps {
   podcasterId: string;
   currentTimestamp: number;
   onConversationIdChange?: (conversationId: string | null) => void;
+  onUserInteraction?: () => void;
 }
 
 export default function ChatPanel({
@@ -27,6 +28,7 @@ export default function ChatPanel({
   podcasterId,
   currentTimestamp,
   onConversationIdChange,
+  onUserInteraction,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -177,6 +179,8 @@ export default function ChatPanel({
     const trimmed = input.trim();
     if (!trimmed || streaming) return;
 
+    onUserInteraction?.();
+
     const userMessage: ChatMessage = { role: "user", content: trimmed };
     setInput("");
 
@@ -188,7 +192,7 @@ export default function ChatPanel({
     // The assistant message index is messages.length + 1 (after user message)
     const assistantIndex = messages.length + 1;
     await streamResponse(trimmed, assistantIndex);
-  }, [input, streaming, messages.length, streamResponse]);
+  }, [input, streaming, messages.length, streamResponse, onUserInteraction]);
 
   const handleRetry = useCallback(
     async (assistantIndex: number) => {
@@ -285,7 +289,11 @@ export default function ChatPanel({
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              onUserInteraction?.();
+              setInput(e.target.value);
+            }}
+            onFocus={() => onUserInteraction?.()}
             onKeyDown={handleKeyDown}
             disabled={streaming}
             placeholder="Type a message…"

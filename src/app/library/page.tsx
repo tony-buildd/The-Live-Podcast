@@ -42,7 +42,12 @@ export default function LibraryPage() {
           const data = (await res.json()) as Episode[];
           setEpisodes(data);
         } else {
-          toast.error("Failed to load episodes. Please try again.");
+          const data = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          toast.error(
+            data?.error ?? "Failed to load episodes. Please try again.",
+          );
         }
       } catch {
         toast.error("Failed to load episodes. Please try again.");

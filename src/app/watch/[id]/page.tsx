@@ -37,6 +37,10 @@ export default function WatchPage() {
   const playerRef = useRef<YouTubePlayerHandle>(null);
   const jumpInGuardRef = useRef(false);
 
+  const pauseVideoForInteraction = useCallback(() => {
+    playerRef.current?.pause();
+  }, []);
+
   useEffect(() => {
     if (!params.id) {
       setError(true);
@@ -265,7 +269,10 @@ export default function WatchPage() {
                 {!voiceMode && SpeechRecognitionService.isSupported() && !micError && (
                   <button
                     type="button"
-                    onClick={() => setVoiceMode(true)}
+                    onClick={() => {
+                      pauseVideoForInteraction();
+                      setVoiceMode(true);
+                    }}
                     className="text-xs text-zinc-500 underline hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-300 dark:focus-visible:outline-zinc-50"
                   >
                     Switch to voice
@@ -289,6 +296,7 @@ export default function WatchPage() {
                     currentTimestamp={chatTimestamp}
                     onMicError={handleMicError}
                     onConversationIdChange={setConversationId}
+                    onUserInteraction={pauseVideoForInteraction}
                   />
                 </div>
               ) : (
@@ -298,6 +306,7 @@ export default function WatchPage() {
                     podcasterId={episode.podcaster.id}
                     currentTimestamp={chatTimestamp}
                     onConversationIdChange={setConversationId}
+                    onUserInteraction={pauseVideoForInteraction}
                   />
                 </div>
               )}

@@ -1,5 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const VALID_URL = "https://youtube.com/watch?v=dQw4w9WgXcQ";
+const VALID_SEGMENTS = [{ text: "hello world", start: 0, duration: 3 }];
+
+const mockTranscriptFetch = () =>
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ videoId: "dQw4w9WgXcQ", segments: VALID_SEGMENTS }),
+    }),
+  );
+
 const {
   authMock,
   currentUserMock,
@@ -32,6 +45,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 vi.mock("@/lib/convex/client", () => ({
   getConvexClient: getConvexClientMock,
   api: apiRefs,
+  isConvexConfigurationError: () => false,
 }));
 
 import { POST } from "@/app/api/episodes/route";
@@ -55,6 +69,9 @@ describe("POST /api/episodes validation", () => {
       action: actionMock,
       query: queryMock,
     });
+
+    // Default: transcript service returns a valid transcript.
+    mockTranscriptFetch();
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -117,7 +134,7 @@ describe("POST /api/episodes validation", () => {
     const req = new Request("http://localhost/api/episodes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://youtube.com/watch?v=abc" }),
+      body: JSON.stringify({ url: VALID_URL }),
     });
 
     const res = await POST(req);
@@ -125,10 +142,7 @@ describe("POST /api/episodes validation", () => {
     await expect(res.json()).resolves.toEqual({ error: message });
   });
 
-  it("returns 400 when Convex reports invalid YouTube URL", async () => {
-    const message = "Invalid YouTube URL";
-    actionMock.mockRejectedValueOnce(new Error(message));
-
+  it("returns 400 for non-YouTube URLs", async () => {
     const req = new Request("http://localhost/api/episodes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -137,22 +151,31 @@ describe("POST /api/episodes validation", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toEqual({ error: message });
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("Invalid YouTube URL");
   });
 
-  it("returns 422 when Convex reports transcript/captions unavailable", async () => {
-    const message = "No transcript available for this video";
-    actionMock.mockRejectedValueOnce(new Error(message));
+  it("returns 422 when transcript service reports no captions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: () =>
+          Promise.resolve({ detail: "Transcripts are disabled for video dQw4w9WgXcQ" }),
+      }),
+    );
 
     const req = new Request("http://localhost/api/episodes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://youtube.com/watch?v=no_transcript" }),
+      body: JSON.stringify({ url: VALID_URL }),
     });
 
     const res = await POST(req);
     expect(res.status).toBe(422);
-    await expect(res.json()).resolves.toEqual({ error: message });
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain("Transcript service error");
   });
 
   it("returns 503 for unexpected Convex ingest errors", async () => {
@@ -162,7 +185,7 @@ describe("POST /api/episodes validation", () => {
     const req = new Request("http://localhost/api/episodes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://youtube.com/watch?v=abc" }),
+      body: JSON.stringify({ url: VALID_URL }),
     });
 
     const res = await POST(req);

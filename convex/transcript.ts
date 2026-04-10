@@ -25,24 +25,6 @@ export function extractYouTubeId(url: string): string | null {
   return null;
 }
 
-const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-const RE_XML_TRANSCRIPT =
-  /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
-
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, "/")
-    .replace(/\n/g, " ");
-}
-
 function resolveVideoId(videoIdOrUrl: string): string {
   if (/^[a-zA-Z0-9_-]{11}$/.test(videoIdOrUrl)) {
     return videoIdOrUrl;
@@ -54,104 +36,77 @@ function resolveVideoId(videoIdOrUrl: string): string {
   return id;
 }
 
+interface PythonSegment {
+  text: string;
+  start: number;
+  duration: number;
+}
+
+interface TranscriptServiceResponse {
+  videoId: string;
+  segments: PythonSegment[];
+}
+
+/**
+ * Fetches a YouTube transcript via the local Python transcript service.
+ *
+ * The service must be running before ingesting episodes:
+ *   npm run transcript:dev
+ *
+ * Service URL defaults to http://127.0.0.1:8765 and can be overridden
+ * via the TRANSCRIPT_SERVICE_URL environment variable.
+ */
 export async function fetchTranscript(
   videoIdOrUrl: string,
 ): Promise<TranscriptSegment[]> {
   const videoId = resolveVideoId(videoIdOrUrl);
 
-  const videoPageResponse = await fetch(
-    `https://www.youtube.com/watch?v=${videoId}`,
-    {
-      headers: {
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    },
-  );
+  const serviceUrl =
+    process.env.TRANSCRIPT_SERVICE_URL ?? "http://127.0.0.1:8765";
 
-  if (!videoPageResponse.ok) {
-    throw new Error(`Failed to fetch YouTube video page (${videoPageResponse.status})`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${serviceUrl}/transcript/${videoId}`, {
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    clearTimeout(timeoutId);
+    const msg = err instanceof Error ? err.message : String(err);
+    const isTimeout = err instanceof Error && err.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `Transcript service timed out after 30s for video ${videoId}. The service may be overloaded or YouTube is slow.`
+        : `Transcript service is unreachable at ${serviceUrl}. ` +
+            `Start it first with: npm run transcript:dev\n(Original error: ${msg})`,
+    );
   }
+  clearTimeout(timeoutId);
 
-  const videoPageBody = await videoPageResponse.text();
-  let playerResponse: Record<string, unknown> | undefined;
-
-  const playerResponseMatch = videoPageBody.match(
-    /ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\});\s*(?:var\s|<\/script>)/,
-  );
-
-  if (playerResponseMatch) {
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
     try {
-      playerResponse = JSON.parse(playerResponseMatch[1]);
+      const body = (await response.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
     } catch {
-      playerResponse = undefined;
+      // ignore JSON parse failure; use status code message
     }
+    throw new Error(`Transcript service error for video ${videoId}: ${detail}`);
   }
 
-  if (!playerResponse) {
-    const split = videoPageBody.split('"captions":');
-    if (split.length <= 1) {
-      if (videoPageBody.includes('class="g-recaptcha"')) {
-        throw new Error(
-          "YouTube is requiring captcha verification. Too many requests from this IP.",
-        );
-      }
-      if (!videoPageBody.includes('"playabilityStatus":')) {
-        throw new Error(`Video is unavailable (${videoId})`);
-      }
-      throw new Error(`Transcript is disabled on this video (${videoId})`);
-    }
+  const data = (await response.json()) as TranscriptServiceResponse;
 
-    try {
-      const captionsJson = split[1]
-        .split(',"videoDetails')[0]
-        .replace("\n", "");
-      const captions = JSON.parse(captionsJson) as {
-        playerCaptionsTracklistRenderer?: unknown;
-      };
-      playerResponse = {
-        captions: {
-          playerCaptionsTracklistRenderer:
-            captions.playerCaptionsTracklistRenderer,
-        },
-      };
-    } catch {
-      throw new Error(`Failed to parse captions data for video (${videoId})`);
-    }
+  if (!data.segments || data.segments.length === 0) {
+    throw new Error(`No transcript segments returned for video (${videoId})`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const captions = (playerResponse as any)?.captions?.playerCaptionsTracklistRenderer;
-  if (!captions) {
-    throw new Error(`Transcript is disabled on this video (${videoId})`);
-  }
-
-  if (!captions.captionTracks || captions.captionTracks.length === 0) {
-    throw new Error(`No transcripts available for this video (${videoId})`);
-  }
-
-  const transcriptURL = captions.captionTracks[0].baseUrl as string;
-  const transcriptResponse = await fetch(transcriptURL, {
-    headers: {
-      "User-Agent": USER_AGENT,
-      "Accept-Language": "en-US,en;q=0.9",
-    },
-  });
-
-  if (!transcriptResponse.ok) {
-    throw new Error(`Failed to fetch transcript XML (${transcriptResponse.status})`);
-  }
-
-  const transcriptBody = await transcriptResponse.text();
-  const results = [...transcriptBody.matchAll(RE_XML_TRANSCRIPT)];
-  if (results.length === 0) {
-    throw new Error(`No transcript segments found for video (${videoId})`);
-  }
-
-  return results.map((result) => ({
-    text: decodeHtmlEntities(result[3]),
-    offset: parseFloat(result[1]),
-    duration: parseFloat(result[2]),
+  return data.segments.map((s) => ({
+    text: s.text,
+    offset: s.start,
+    duration: s.duration,
   }));
 }
 

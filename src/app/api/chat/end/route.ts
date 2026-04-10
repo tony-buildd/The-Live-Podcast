@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { getConvexClient, api } from "@/lib/convex/client";
+import {
+  getConvexClient,
+  api,
+  isConvexConfigurationError,
+} from "@/lib/convex/client";
 
 interface ChatEndRequestBody {
   conversationId?: string;
@@ -53,6 +57,10 @@ export async function POST(request: Request): Promise<Response> {
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
+    if (isConvexConfigurationError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
     const message =
       error instanceof Error ? error.message : "Failed to end conversation";
     const status = message.includes("not found") ? 404 : 403;

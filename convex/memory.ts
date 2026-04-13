@@ -55,7 +55,7 @@ export const getConversationContext = action({
     const trimmedMessage = args.userMessage?.trim();
     if (trimmedMessage) {
       const embedding = await embed(trimmedMessage);
-      const semanticResults = (await ctx.runQuery(
+      const semanticResults = (await ctx.runAction(
         internal.memory.semanticSearchByEmbedding,
         {
           embedding,
@@ -203,7 +203,7 @@ export const getBaseContextData = internalQuery({
   },
 });
 
-export const semanticSearchByEmbedding = internalQuery({
+export const semanticSearchByEmbedding: ReturnType<typeof internalAction> = internalAction({
   args: {
     embedding: v.array(v.float64()),
     podcasterId: v.id("podcasters"),
@@ -213,15 +213,21 @@ export const semanticSearchByEmbedding = internalQuery({
     topK: v.number(),
   },
   handler: async (ctx, args) => {
-    // TODO: replace with Convex vector search once generated server types are available locally.
     const excluded = new Set(args.excludeChunkIds.map((id) => String(id)));
-    const chunks = await ctx.db
-      .query("transcriptChunks")
-      .withIndex("by_podcaster", (q) => q.eq("podcasterId", args.podcasterId))
-      .collect();
+    const matches = await ctx.vectorSearch("transcriptChunks", "by_embedding", {
+      vector: args.embedding,
+      limit: Math.min(Math.max(args.topK * 4, 8), 64),
+      filter: (q) => q.eq("podcasterId", args.podcasterId),
+    });
 
-    const scored = chunks
-      .filter((chunk) => !excluded.has(String(chunk._id)))
+    const hydrated = await ctx.runQuery(internal.memory.getChunksByIds, {
+      chunkIds: matches.map((match) => match._id),
+    });
+
+    const scoreById = new Map(matches.map((match) => [String(match._id), match._score]));
+
+    return hydrated
+      .filter((chunk) => !excluded.has(String(chunk.id)))
       .filter((chunk) => {
         if (chunk.episodeId !== args.currentEpisodeId) {
           return true;
@@ -230,15 +236,11 @@ export const semanticSearchByEmbedding = internalQuery({
         return chunk.endTime <= args.currentTimestamp;
       })
       .map((chunk) => ({
-        id: String(chunk._id),
+        id: String(chunk.id),
         text: chunk.text,
-        score: cosineSimilarity(args.embedding, chunk.embedding ?? []),
+        score: scoreById.get(String(chunk.id)) ?? 0,
       }))
-      .filter((item) => Number.isFinite(item.score))
-      .sort((a, b) => b.score - a.score)
       .slice(0, Math.max(0, args.topK));
-
-    return scored;
   },
 });
 
@@ -256,6 +258,24 @@ export const getEpisodeChunksForEmbedding = internalQuery({
       id: chunk._id,
       text: chunk.text,
     }));
+  },
+});
+
+export const getChunksByIds = internalQuery({
+  args: {
+    chunkIds: v.array(v.id("transcriptChunks")),
+  },
+  handler: async (ctx, args) => {
+    const chunks = await Promise.all(args.chunkIds.map((chunkId) => ctx.db.get(chunkId)));
+
+    return chunks
+      .filter((chunk): chunk is NonNullable<typeof chunk> => chunk !== null)
+      .map((chunk) => ({
+        id: chunk._id,
+        episodeId: chunk.episodeId,
+        endTime: chunk.endTime,
+        text: chunk.text,
+      }));
   },
 });
 
@@ -284,28 +304,4 @@ function formatTimestamp(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length === 0 || b.length === 0 || a.length !== b.length) {
-    return 0;
-  }
-
-  let dot = 0;
-  let magA = 0;
-  let magB = 0;
-
-  for (let i = 0; i < a.length; i += 1) {
-    const av = a[i];
-    const bv = b[i];
-    dot += av * bv;
-    magA += av * av;
-    magB += bv * bv;
-  }
-
-  if (magA === 0 || magB === 0) {
-    return 0;
-  }
-
-  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }

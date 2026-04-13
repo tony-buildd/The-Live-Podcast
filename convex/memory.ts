@@ -60,6 +60,8 @@ export const getConversationContext = action({
         {
           embedding,
           podcasterId: args.podcasterId,
+          currentEpisodeId: args.episodeId,
+          currentTimestamp: args.currentTimestamp,
           excludeChunkIds: baseContext.recentChunks.map((chunk: RecentChunk) => chunk.id),
           topK: 8,
         },
@@ -151,6 +153,7 @@ export const getBaseContextData = internalQuery({
       .filter((chunk) => {
         return (
           chunk.startTime <= args.currentTimestamp && chunk.startTime >= windowStart
+          && chunk.endTime <= args.currentTimestamp
         );
       })
       .map((chunk) => ({
@@ -204,6 +207,8 @@ export const semanticSearchByEmbedding = internalQuery({
   args: {
     embedding: v.array(v.float64()),
     podcasterId: v.id("podcasters"),
+    currentEpisodeId: v.id("episodes"),
+    currentTimestamp: v.number(),
     excludeChunkIds: v.array(v.id("transcriptChunks")),
     topK: v.number(),
   },
@@ -217,6 +222,13 @@ export const semanticSearchByEmbedding = internalQuery({
 
     const scored = chunks
       .filter((chunk) => !excluded.has(String(chunk._id)))
+      .filter((chunk) => {
+        if (chunk.episodeId !== args.currentEpisodeId) {
+          return true;
+        }
+
+        return chunk.endTime <= args.currentTimestamp;
+      })
       .map((chunk) => ({
         id: String(chunk._id),
         text: chunk.text,

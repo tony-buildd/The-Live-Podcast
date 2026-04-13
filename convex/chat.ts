@@ -31,6 +31,9 @@ export const startConversation = mutation({
     if (!podcaster) {
       throw new ConvexError("Podcaster not found");
     }
+    if (episode.podcasterId !== args.podcasterId) {
+      throw new ConvexError("Episode does not belong to the specified podcaster");
+    }
 
     let activeConversationId = args.conversationId;
 

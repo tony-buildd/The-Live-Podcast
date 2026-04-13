@@ -6,6 +6,12 @@ import { SpeechSynthesisService } from "@/lib/voice/speech-synthesis";
 
 type VoiceState = "idle" | "listening" | "processing" | "speaking";
 
+type ChatStreamEvent =
+  | { type: "conversation"; conversationId: string }
+  | { type: "token"; content: string }
+  | { type: "done" }
+  | { type: "error"; message: string };
+
 interface VoiceConversationProps {
   episodeId: string;
   podcasterId: string;
@@ -49,7 +55,10 @@ export default function VoiceConversation({
       });
 
       if (!res.ok || !res.body) {
-        throw new Error("Chat API request failed");
+        const payload = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(payload?.error ?? "Chat API request failed");
       }
 
       const reader = res.body.getReader();
@@ -69,20 +78,27 @@ export default function VoiceConversation({
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6);
 
-          if (data === "[DONE]" || data === "[ERROR]") continue;
-
+          let parsed: ChatStreamEvent;
           try {
-            const parsed = JSON.parse(data) as { conversationId?: string };
-            if (parsed.conversationId) {
-              setConversationId(parsed.conversationId);
-              onConversationIdChange?.(parsed.conversationId);
-              continue;
-            }
+            parsed = JSON.parse(data) as ChatStreamEvent;
           } catch {
-            // Not JSON — it's a text token
+            continue;
           }
 
-          fullResponse += data;
+          if (parsed.type === "conversation") {
+            setConversationId(parsed.conversationId);
+            onConversationIdChange?.(parsed.conversationId);
+            continue;
+          }
+
+          if (parsed.type === "token") {
+            fullResponse += parsed.content;
+            continue;
+          }
+
+          if (parsed.type === "error") {
+            throw new Error(parsed.message);
+          }
         }
       }
 

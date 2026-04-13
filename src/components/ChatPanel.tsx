@@ -15,6 +15,12 @@ interface ChatMessage {
   error?: boolean;
 }
 
+type ChatStreamEvent =
+  | { type: "conversation"; conversationId: string }
+  | { type: "token"; content: string }
+  | { type: "done" }
+  | { type: "error"; message: string };
+
 interface ChatPanelProps {
   episodeId: string;
   podcasterId: string;
@@ -84,14 +90,19 @@ export default function ChatPanel({
         });
 
         if (!res.ok || !res.body) {
-          toast.error("Failed to get a response. Please try again.");
+          const payload = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          const errorMessage =
+            payload?.error ?? "Failed to get a response. Please try again.";
+
+          toast.error(errorMessage);
           setMessages((prev) => {
             const updated = [...prev];
             updated[assistantIndex] = {
               role: "assistant",
               content:
-                updated[assistantIndex].content ||
-                "Something went wrong. Please try again.",
+                updated[assistantIndex].content || errorMessage,
               error: true,
             };
             return updated;
@@ -103,6 +114,7 @@ export default function ChatPanel({
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let streamFailed = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -117,44 +129,65 @@ export default function ChatPanel({
             if (!line.startsWith("data: ")) continue;
             const data = line.slice(6);
 
-            if (data === "[DONE]" || data === "[ERROR]") continue;
-
-            // Try to parse conversationId from metadata
             try {
-              const parsed = JSON.parse(data) as { conversationId?: string };
-              if (parsed.conversationId) {
+              const parsed = JSON.parse(data) as ChatStreamEvent;
+
+              if (parsed.type === "conversation") {
                 setConversationId(parsed.conversationId);
                 onConversationIdChange?.(parsed.conversationId);
                 continue;
               }
-            } catch {
-              // Not JSON — it's a text token
-            }
 
-            // Append token to the assistant message at assistantIndex
-            setMessages((prev) => {
-              const updated = [...prev];
-              const msg = updated[assistantIndex];
-              if (msg && msg.role === "assistant") {
-                updated[assistantIndex] = {
-                  ...msg,
-                  content: msg.content + data,
-                };
+              if (parsed.type === "token") {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const msg = updated[assistantIndex];
+                  if (msg && msg.role === "assistant") {
+                    updated[assistantIndex] = {
+                      ...msg,
+                      content: msg.content + parsed.content,
+                    };
+                  }
+                  return updated;
+                });
+                continue;
               }
-              return updated;
-            });
+
+              if (parsed.type === "error") {
+                streamFailed = true;
+                toast.error(parsed.message);
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  updated[assistantIndex] = {
+                    role: "assistant",
+                    content:
+                      updated[assistantIndex].content || parsed.message,
+                    error: true,
+                  };
+                  return updated;
+                });
+                continue;
+              }
+
+              if (parsed.type === "done") {
+                continue;
+              }
+            } catch {
+              continue;
+            }
           }
         }
 
-        // Mark as non-error on success
-        setMessages((prev) => {
-          const updated = [...prev];
-          const msg = updated[assistantIndex];
-          if (msg && msg.role === "assistant") {
-            updated[assistantIndex] = { ...msg, error: false };
-          }
-          return updated;
-        });
+        if (!streamFailed) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const msg = updated[assistantIndex];
+            if (msg && msg.role === "assistant") {
+              updated[assistantIndex] = { ...msg, error: false };
+            }
+            return updated;
+          });
+        }
       } catch {
         toast.error("Connection error. Please try again.");
         setMessages((prev) => {

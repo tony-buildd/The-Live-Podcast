@@ -18,6 +18,12 @@ interface ChatRequestBody {
   conversationId?: string;
 }
 
+type ChatStreamEvent =
+  | { type: "conversation"; conversationId: string }
+  | { type: "token"; content: string }
+  | { type: "done" }
+  | { type: "error"; message: string };
+
 export async function POST(request: Request): Promise<Response> {
   const { userId } = await auth();
   if (!userId) {
@@ -128,31 +134,32 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: errorMessage }, { status });
   }
 
-  const context = await convex.action(api.memory.getConversationContext, {
-    episodeId: typedEpisodeId,
-    podcasterId: typedPodcasterId,
-    userId,
-    currentTimestamp: typedTimestamp,
-    userMessage: typedMessage,
-  });
-
-  const systemMessages: Message[] = [{
-    role: "system",
-    content: buildSystemPrompt(context),
-  }];
-
-  const priorMessages = await convex.query(api.chat.listConversationMessages, {
-    conversationId: activeConversationId,
-  });
-
-  const llmMessages: Message[] = [
-    ...systemMessages,
-    ...priorMessages,
-  ];
-
-  const llm = getLLMProvider();
+  let llmMessages: Message[];
   let stream: AsyncGenerator<string, void, unknown>;
   try {
+    const context = await convex.action(api.memory.getConversationContext, {
+      episodeId: typedEpisodeId,
+      podcasterId: typedPodcasterId,
+      userId,
+      currentTimestamp: typedTimestamp,
+      userMessage: typedMessage,
+    });
+
+    const systemMessages: Message[] = [{
+      role: "system",
+      content: buildSystemPrompt(context),
+    }];
+
+    const priorMessages = await convex.query(api.chat.listConversationMessages, {
+      conversationId: activeConversationId,
+    });
+
+    llmMessages = [
+      ...systemMessages,
+      ...priorMessages,
+    ];
+
+    const llm = getLLMProvider();
     stream = llm.stream(llmMessages);
 
     const first = await stream.next();
@@ -164,13 +171,11 @@ export async function POST(request: Request): Promise<Response> {
 
       const emptyReadable = new ReadableStream({
         start(controller) {
-          const encoder = new TextEncoder();
-          controller.enqueue(
-            encoder.encode(
-              `data: {"conversationId":"${String(activeConversationId)}"}\n\n`,
-            ),
-          );
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          enqueueSseEvent(controller, {
+            type: "conversation",
+            conversationId: String(activeConversationId),
+          });
+          enqueueSseEvent(controller, { type: "done" });
           controller.close();
         },
       });
@@ -189,30 +194,34 @@ export async function POST(request: Request): Promise<Response> {
 
     const readable = new ReadableStream({
       async start(controller) {
-        const encoder = new TextEncoder();
         let fullContent = "";
 
         try {
-          controller.enqueue(
-            encoder.encode(`data: {"conversationId":"${String(convoId)}"}\n\n`)
-          );
+          enqueueSseEvent(controller, {
+            type: "conversation",
+            conversationId: String(convoId),
+          });
 
           fullContent += firstToken;
-          controller.enqueue(encoder.encode(`data: ${firstToken}\n\n`));
+          enqueueSseEvent(controller, { type: "token", content: firstToken });
 
           for await (const token of stream) {
             fullContent += token;
-            controller.enqueue(encoder.encode(`data: ${token}\n\n`));
+            enqueueSseEvent(controller, { type: "token", content: token });
           }
-
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 
           await convex.mutation(api.chat.appendAssistantMessage, {
             conversationId: convoId,
             content: fullContent,
           });
-        } catch {
-          controller.enqueue(encoder.encode("data: [ERROR]\n\n"));
+
+          enqueueSseEvent(controller, { type: "done" });
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Streaming failed before the response could be saved.";
+          enqueueSseEvent(controller, { type: "error", message });
         } finally {
           controller.close();
         }
@@ -235,6 +244,14 @@ export async function POST(request: Request): Promise<Response> {
       { status: 503 }
     );
   }
+}
+
+function enqueueSseEvent(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  event: ChatStreamEvent,
+): void {
+  const encoder = new TextEncoder();
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
 }
 
 function buildSystemPrompt(context: {

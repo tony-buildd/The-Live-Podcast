@@ -37,15 +37,15 @@ yarn-error.log*
 .env.*
 !.env.example
 
-# database
-prisma/dev.db
-prisma/dev.db-journal
-prisma/test.db
-prisma/test.db-journal
-prisma/test-chat.db
-prisma/test-chat.db-journal
-prisma/test-profiles.db
-prisma/test-profiles.db-journal
+# dead prisma artifacts (migrated to Convex)
+prisma/
+src/generated/prisma/
+
+# python transcript service caches
+transcript-service/__pycache__/
+
+# empty legacy directory
+transcript_service/
 
 # vercel
 .vercel
@@ -53,8 +53,6 @@ prisma/test-profiles.db-journal
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-/src/generated/prisma
 
 # vector store
 .vectorstore/

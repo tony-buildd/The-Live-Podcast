@@ -110,6 +110,10 @@ export const ingestEpisode: ReturnType<typeof action> = action({
   args: {
     userId: v.string(),
     url: v.string(),
+    podcasterName: v.string(),
+    podcasterChannelUrl: v.string(),
+    episodeTitle: v.string(),
+    thumbnailUrl: v.optional(v.string()),
     segments: v.array(segmentValidator),
   },
   handler: async (ctx, args) => {
@@ -138,11 +142,9 @@ export const ingestEpisode: ReturnType<typeof action> = action({
     }
 
     const chunks = chunkTranscript(args.segments);
-    const channelUrl = `https://www.youtube.com/channel/placeholder-${youtubeId}`;
-
     const podcasterId = await ctx.runMutation(internal.episodes.upsertPodcaster, {
-      channelUrl,
-      name: `Podcaster (${youtubeId})`,
+      channelUrl: args.podcasterChannelUrl,
+      name: args.podcasterName,
     });
 
     const episodeId = await ctx.runMutation(internal.episodes.createEpisodeWithChunks, {
@@ -150,7 +152,8 @@ export const ingestEpisode: ReturnType<typeof action> = action({
       userId: args.userId,
       youtubeUrl: trimmedUrl,
       youtubeId,
-      title: `Episode ${youtubeId}`,
+      title: args.episodeTitle,
+      thumbnailUrl: args.thumbnailUrl,
       chunks,
     });
 
@@ -232,6 +235,7 @@ export const createEpisodeWithChunks = internalMutation({
     youtubeUrl: v.string(),
     youtubeId: v.string(),
     title: v.string(),
+    thumbnailUrl: v.optional(v.string()),
     chunks: v.array(
       v.object({
         text: v.string(),
@@ -249,6 +253,7 @@ export const createEpisodeWithChunks = internalMutation({
       youtubeUrl: args.youtubeUrl,
       youtubeId: args.youtubeId,
       title: args.title,
+      thumbnailUrl: args.thumbnailUrl,
       createdAt: now,
       updatedAt: now,
     });

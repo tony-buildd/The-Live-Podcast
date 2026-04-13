@@ -33,6 +33,13 @@ interface TranscriptServiceResponse {
   segments: TranscriptSegment[];
 }
 
+interface YouTubeOEmbedResponse {
+  title: string;
+  author_name: string;
+  author_url: string;
+  thumbnail_url?: string;
+}
+
 async function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -98,6 +105,27 @@ async function fetchTranscriptSegments(
   }));
 }
 
+async function fetchYouTubeMetadata(url: string): Promise<YouTubeOEmbedResponse | null> {
+  const oEmbedUrl =
+    `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+
+  try {
+    const response = await fetch(oEmbedUrl, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as YouTubeOEmbedResponse;
+  } catch {
+    return null;
+  }
+}
+
 interface PostRequestBody {
   url?: string;
 }
@@ -145,6 +173,7 @@ export async function POST(request: Request): Promise<Response> {
   // Python service (127.0.0.1:8765). Convex action runtimes are sandboxed
   // and cannot initiate connections to localhost.
   let segments: Array<{ text: string; offset: number; duration: number }>;
+  const metadata = await fetchYouTubeMetadata(url);
   try {
     segments = await fetchTranscriptSegments(videoId);
   } catch (transcriptError) {
@@ -169,7 +198,17 @@ export async function POST(request: Request): Promise<Response> {
     ).catch(() => undefined);
 
     const episode = await withTimeout(
-      convex.action(api.episodes.ingestEpisode, { userId, url, segments }),
+      convex.action(api.episodes.ingestEpisode, {
+        userId,
+        url,
+        podcasterName: metadata?.author_name ?? `Podcaster (${videoId})`,
+        podcasterChannelUrl:
+          metadata?.author_url ??
+          `https://www.youtube.com/channel/placeholder-${videoId}`,
+        episodeTitle: metadata?.title ?? `Episode ${videoId}`,
+        thumbnailUrl: metadata?.thumbnail_url,
+        segments,
+      }),
       45_000,
       "Ingest timed out while saving episode to backend",
     );

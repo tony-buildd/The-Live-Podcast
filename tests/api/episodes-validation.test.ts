@@ -6,10 +6,29 @@ const VALID_SEGMENTS = [{ text: "hello world", start: 0, duration: 3 }];
 const mockTranscriptFetch = () =>
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({ videoId: "dQw4w9WgXcQ", segments: VALID_SEGMENTS }),
+    vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+
+      if (url.includes("/oembed")) {
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              title: "Sample Episode",
+              author_name: "Sample Host",
+              author_url: "https://www.youtube.com/@sample-host",
+              thumbnail_url: "https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
+            }),
+        };
+      }
+
+      return {
+        ok: true,
+        json: () =>
+          Promise.resolve({ videoId: "dQw4w9WgXcQ", segments: VALID_SEGMENTS }),
+      };
     }),
   );
 
@@ -158,11 +177,29 @@ describe("POST /api/episodes validation", () => {
   it("returns 422 when transcript service reports no captions", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: () =>
-          Promise.resolve({ detail: "Transcripts are disabled for video dQw4w9WgXcQ" }),
+      vi.fn().mockImplementation(async (input: string | URL | Request) => {
+        const url = String(
+          typeof input === "string" || input instanceof URL ? input : input.url,
+        );
+
+        if (url.includes("/oembed")) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                title: "Sample Episode",
+                author_name: "Sample Host",
+                author_url: "https://www.youtube.com/@sample-host",
+              }),
+          };
+        }
+
+        return {
+          ok: false,
+          status: 404,
+          json: () =>
+            Promise.resolve({ detail: "Transcripts are disabled for video dQw4w9WgXcQ" }),
+        };
       }),
     );
 

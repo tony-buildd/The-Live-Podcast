@@ -65,7 +65,6 @@ export async function fetchTranscript(
     });
   } catch (err) {
     clearTimeout(timeoutId);
-    clearTimeout(timeoutId);
     const msg = err instanceof Error ? err.message : String(err);
     const isTimeout = err instanceof Error && err.name === "AbortError";
     throw new Error(

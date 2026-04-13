@@ -1,6 +1,7 @@
 import { LLMProvider } from "./types";
 import { OpenAIProvider } from "./openai";
 import { OllamaProvider } from "./ollama";
+import { OpenRouterProvider } from "./openrouter";
 
 export type { LLMProvider, Message, LLMOptions } from "./types";
 
@@ -10,6 +11,8 @@ export function createLLMProvider(): LLMProvider {
   switch (provider) {
     case "openai":
       return new OpenAIProvider();
+    case "openrouter":
+      return new OpenRouterProvider();
     case "ollama":
       return new OllamaProvider();
     default:

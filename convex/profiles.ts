@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { chatWithLLM } from "./llm";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import {
   action,
   internalAction,
@@ -36,7 +37,16 @@ export const getPodcasterById = query({
   },
 });
 
-export const rebuildPodcasterProfile = action({
+export const rebuildPodcasterProfile: ReturnType<typeof action> = action({
+  args: {
+    podcasterId: v.id("podcasters"),
+  },
+  handler: async (ctx, args) => {
+    return ctx.runAction(internal.profiles.rebuildPodcasterProfileInternal, args);
+  },
+});
+
+export const rebuildPodcasterProfileInternal = internalAction({
   args: {
     podcasterId: v.id("podcasters"),
   },
@@ -161,7 +171,7 @@ export const getProfileSourceData = internalQuery({
       .take(10);
 
     const withSamples = await Promise.all(
-      episodes.map(async (episode: { _id: string; title: string }) => {
+      episodes.map(async (episode: Doc<"episodes">) => {
         const chunks = await ctx.db
           .query("transcriptChunks")
           .withIndex("by_episode_start_time", (q) => q.eq("episodeId", episode._id))

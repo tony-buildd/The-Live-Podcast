@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
   action,
+  internalQuery,
   mutation,
   query,
 } from "./_generated/server";
@@ -142,7 +143,7 @@ export const endConversation = action({
   },
 });
 
-export const getConversationById = query({
+export const getConversationById = internalQuery({
   args: {
     conversationId: v.id("conversations"),
   },
@@ -161,7 +162,7 @@ export const getConversationById = query({
   },
 });
 
-export const getConversationMessageCount = query({
+export const getConversationMessageCount = internalQuery({
   args: {
     conversationId: v.id("conversations"),
   },

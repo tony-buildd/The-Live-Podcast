@@ -5,6 +5,7 @@ import {
   api,
   isConvexConfigurationError,
 } from "@/lib/convex/client";
+import { asConvexId } from "@/lib/convex/ids";
 
 interface ChatEndRequestBody {
   conversationId?: string;
@@ -47,12 +48,19 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (typeof conversationId !== "string" || typeof podcasterId !== "string") {
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
+  }
+
   try {
     const convex = getConvexClient();
     const result = await convex.action(api.chat.endConversation, {
-      conversationId,
+      conversationId: asConvexId<"conversations">(conversationId),
       userId,
-      podcasterId,
+      podcasterId: asConvexId<"podcasters">(podcasterId),
     });
 
     return NextResponse.json(result, { status: 200 });

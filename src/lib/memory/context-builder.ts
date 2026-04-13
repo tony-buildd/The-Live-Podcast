@@ -1,4 +1,5 @@
 import { api, getConvexClient } from "@/lib/convex/client";
+import { asConvexId } from "@/lib/convex/ids";
 import type { Message } from "@/lib/llm/types";
 
 export interface BuildConversationContextArgs {
@@ -32,7 +33,11 @@ export async function buildConversationContext(
   const convex = getConvexClient();
   const context = (await convex.action(
     api.memory.getConversationContext,
-    args,
+    {
+      ...args,
+      episodeId: asConvexId<"episodes">(args.episodeId),
+      podcasterId: asConvexId<"podcasters">(args.podcasterId),
+    },
   )) as ConversationContext;
 
   return [

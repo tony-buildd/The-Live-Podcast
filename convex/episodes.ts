@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import {
   action,
   internalMutation,
@@ -38,7 +38,50 @@ export const listEpisodes = query({
   },
 });
 
-export const getEpisodeDetail = query({
+export const getEpisodeDetailInternal = internalQuery({
+  args: { episodeId: v.id("episodes") },
+  handler: async (ctx, args) => {
+    const episode = await ctx.db.get(args.episodeId);
+    if (!episode) {
+      return null;
+    }
+
+    const podcaster = await ctx.db.get(episode.podcasterId);
+    const transcriptChunks = await ctx.db
+      .query("transcriptChunks")
+      .withIndex("by_episode_start_time", (q) => q.eq("episodeId", episode._id))
+      .collect();
+
+    return {
+      id: episode._id,
+      podcasterId: episode.podcasterId,
+      youtubeUrl: episode.youtubeUrl,
+      youtubeId: episode.youtubeId,
+      title: episode.title,
+      description: episode.description,
+      thumbnailUrl: episode.thumbnailUrl,
+      publishedAt: episode.publishedAt,
+      createdAt: episode.createdAt,
+      updatedAt: episode.updatedAt,
+      podcaster: podcaster
+        ? {
+            id: podcaster._id,
+            name: podcaster.name,
+            channelUrl: podcaster.channelUrl,
+            description: podcaster.description,
+          }
+        : null,
+      transcriptChunks: transcriptChunks.map((chunk) => ({
+        id: chunk._id,
+        text: chunk.text,
+        startTime: chunk.startTime,
+        endTime: chunk.endTime,
+      })),
+    };
+  },
+});
+
+export const getEpisodeDetail: ReturnType<typeof query> = query({
   args: { episodeId: v.id("episodes") },
   handler: async (ctx, args) => {
     const episode = await ctx.db.get(args.episodeId);
@@ -87,7 +130,7 @@ const segmentValidator = v.object({
   duration: v.number(),
 });
 
-export const ingestEpisode = action({
+export const ingestEpisode: ReturnType<typeof action> = action({
   args: {
     url: v.string(),
     segments: v.array(segmentValidator),
@@ -134,15 +177,19 @@ export const ingestEpisode = action({
 
     // Schedule both as background jobs so ingest returns immediately.
     // Embeddings and profile will be ready shortly after.
-    await ctx.scheduler.runAfter(0, internal.memory.reindexEpisodeChunks, {
+    await ctx.scheduler.runAfter(0, internal.memory.reindexEpisodeChunksInternal, {
       episodeId,
     });
 
-    await ctx.scheduler.runAfter(0, internal.profiles.rebuildPodcasterProfile, {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.profiles.rebuildPodcasterProfileInternal,
+      {
       podcasterId,
-    });
+      },
+    );
 
-    const episode = await ctx.runQuery(api.episodes.getEpisodeDetail, {
+    const episode = await ctx.runQuery(internal.episodes.getEpisodeDetailInternal, {
       episodeId,
     });
 

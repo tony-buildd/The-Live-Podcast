@@ -5,6 +5,7 @@ import {
   api,
   isConvexConfigurationError,
 } from "@/lib/convex/client";
+import { asConvexId } from "@/lib/convex/ids";
 
 interface BuildRequestBody {
   podcasterId?: string;
@@ -41,10 +42,12 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  const typedPodcasterId = asConvexId<"podcasters">(podcasterId);
+
   try {
     const convex = getConvexClient();
     const podcaster = await convex.query(api.profiles.getPodcasterById, {
-      podcasterId,
+      podcasterId: typedPodcasterId,
     });
 
     if (!podcaster) {
@@ -55,7 +58,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const result = await convex.action(api.profiles.rebuildPodcasterProfile, {
-      podcasterId,
+      podcasterId: typedPodcasterId,
     });
 
     if (!result.profile) {
@@ -67,15 +70,6 @@ export async function POST(request: Request): Promise<Response> {
 
     return NextResponse.json(
       {
-        } catch (error) {
-          if (isConvexConfigurationError(error)) {
-            return NextResponse.json({ error: error.message }, { status: 503 });
-          }
-
-          return NextResponse.json(
-            { error: "AI service is currently unavailable. Could not build profile." },
-            { status: 503 }
-          );
         profile: {
           podcasterId,
           summaryText: result.profile.summaryText,
@@ -86,7 +80,11 @@ export async function POST(request: Request): Promise<Response> {
       },
       { status: 200 }
     );
-  } catch {
+  } catch (error) {
+    if (isConvexConfigurationError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
     return NextResponse.json(
       { error: "AI service is currently unavailable. Could not build profile." },
       { status: 503 }

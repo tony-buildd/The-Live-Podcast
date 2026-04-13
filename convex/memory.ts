@@ -1,10 +1,11 @@
 import { v } from "convex/values";
 import { embed, embedBatch } from "./embeddings";
 import { internal } from "./_generated/api";
-import { action, internalMutation, internalQuery } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 
 interface RecentChunk {
-  id: string;
+  id: Id<"transcriptChunks">;
   text: string;
   startTime: number;
   endTime: number;
@@ -89,15 +90,40 @@ export const reindexEpisodeChunks = action({
   handler: async (ctx, args) => {
     const chunks = (await ctx.runQuery(internal.memory.getEpisodeChunksForEmbedding, {
       episodeId: args.episodeId,
-    })) as Array<{ id: string; text: string }>;
+    })) as Array<{ id: Id<"transcriptChunks">; text: string }>;
 
     if (chunks.length === 0) {
       return { embedded: 0 };
     }
 
-    const embeddings = await embedBatch(chunks.map((chunk: { id: string; text: string }) => chunk.text));
+    const embeddings = await embedBatch(chunks.map((chunk) => chunk.text));
     await ctx.runMutation(internal.memory.setChunkEmbeddings, {
-      updates: chunks.map((chunk: { id: string; text: string }, index: number) => ({
+      updates: chunks.map((chunk, index) => ({
+        chunkId: chunk.id,
+        embedding: embeddings[index],
+      })),
+    });
+
+    return { embedded: chunks.length };
+  },
+});
+
+export const reindexEpisodeChunksInternal = internalAction({
+  args: {
+    episodeId: v.id("episodes"),
+  },
+  handler: async (ctx, args) => {
+    const chunks = (await ctx.runQuery(internal.memory.getEpisodeChunksForEmbedding, {
+      episodeId: args.episodeId,
+    })) as Array<{ id: Id<"transcriptChunks">; text: string }>;
+
+    if (chunks.length === 0) {
+      return { embedded: 0 };
+    }
+
+    const embeddings = await embedBatch(chunks.map((chunk) => chunk.text));
+    await ctx.runMutation(internal.memory.setChunkEmbeddings, {
+      updates: chunks.map((chunk, index) => ({
         chunkId: chunk.id,
         embedding: embeddings[index],
       })),

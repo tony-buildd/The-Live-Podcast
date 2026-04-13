@@ -1,8 +1,11 @@
 import { api, getConvexClient } from "@/lib/convex/client";
+import { asConvexId } from "@/lib/convex/ids";
 
 export async function buildPodcasterProfile(podcasterId: string): Promise<void> {
   const convex = getConvexClient();
-  await convex.action(api.profiles.rebuildPodcasterProfile, { podcasterId });
+  await convex.action(api.profiles.rebuildPodcasterProfile, {
+    podcasterId: asConvexId<"podcasters">(podcasterId),
+  });
 }
 
 export async function updateUserPodcasterMemory(
@@ -13,7 +16,7 @@ export async function updateUserPodcasterMemory(
   const convex = getConvexClient();
   await convex.action(api.chat.endConversation, {
     userId,
-    podcasterId,
-    conversationId,
+    podcasterId: asConvexId<"podcasters">(podcasterId),
+    conversationId: asConvexId<"conversations">(conversationId),
   });
 }

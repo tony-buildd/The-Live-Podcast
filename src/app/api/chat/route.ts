@@ -7,6 +7,8 @@ import {
   api,
   isConvexConfigurationError,
 } from "@/lib/convex/client";
+import { asConvexId } from "@/lib/convex/ids";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 interface ChatRequestBody {
   episodeId?: string;
@@ -65,6 +67,20 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (
+    typeof episodeId !== "string" ||
+    typeof podcasterId !== "string" ||
+    typeof timestamp !== "number"
+  ) {
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
+  }
+
+  const typedTimestamp = timestamp;
+  const typedMessage = message;
+
   let convex;
   try {
     convex = getConvexClient();
@@ -87,17 +103,24 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  let activeConversationId: string;
+  const typedEpisodeId = asConvexId<"episodes">(episodeId);
+  const typedPodcasterId = asConvexId<"podcasters">(podcasterId);
+  const typedConversationId =
+    normalizedConversationId === undefined
+      ? undefined
+      : asConvexId<"conversations">(normalizedConversationId);
+
+  let activeConversationId: Id<"conversations">;
   try {
     const start = await convex.mutation(api.chat.startConversation, {
       userId,
-      episodeId,
-      podcasterId,
-      timestamp,
-      message,
-      conversationId: normalizedConversationId,
+      episodeId: typedEpisodeId,
+      podcasterId: typedPodcasterId,
+      timestamp: typedTimestamp,
+      message: typedMessage,
+      conversationId: typedConversationId,
     });
-    activeConversationId = String(start.conversationId);
+    activeConversationId = start.conversationId;
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Conversation setup failed";
@@ -106,11 +129,11 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const context = await convex.action(api.memory.getConversationContext, {
-    episodeId,
-    podcasterId,
+    episodeId: typedEpisodeId,
+    podcasterId: typedPodcasterId,
     userId,
-    currentTimestamp: timestamp,
-    userMessage: message,
+    currentTimestamp: typedTimestamp,
+    userMessage: typedMessage,
   });
 
   const systemMessages: Message[] = [{
@@ -142,7 +165,11 @@ export async function POST(request: Request): Promise<Response> {
       const emptyReadable = new ReadableStream({
         start(controller) {
           const encoder = new TextEncoder();
-          controller.enqueue(encoder.encode(`data: {"conversationId":"${activeConversationId}"}\n\n`));
+          controller.enqueue(
+            encoder.encode(
+              `data: {"conversationId":"${String(activeConversationId)}"}\n\n`,
+            ),
+          );
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         },
@@ -167,7 +194,7 @@ export async function POST(request: Request): Promise<Response> {
 
         try {
           controller.enqueue(
-            encoder.encode(`data: {"conversationId":"${convoId}"}\n\n`)
+            encoder.encode(`data: {"conversationId":"${String(convoId)}"}\n\n`)
           );
 
           fullContent += firstToken;

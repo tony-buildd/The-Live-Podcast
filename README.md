@@ -1,93 +1,120 @@
-# The-Live-Podcast
+# Talk to the Video
 
-An interactive AI podcast companion that turns prerecorded long-form video into a timeline-aware conversation. Users can paste a YouTube podcast URL, watch or listen, and ask questions that stay grounded in everything discussed up to the current moment.
+An interactive app that lets you talk to any YouTube video in real time. Paste a URL, watch the video, pause when something is unclear or interesting, and ask a question — the AI answers with full awareness of what's being discussed at that moment.
 
 ## Problem
 
-When watching videos, questions come up at specific moments, but most AI workflows ignore that timing. Copying a transcript into a general chat tool flattens the experience, so answers are no longer tied to where the user paused or what has been covered so far.
+1. **Manual friction** — to ask an AI about a video, you have to copy-paste the transcript into ChatGPT.
+2. **No context awareness** — pasting the full transcript means the AI has everything at once. It doesn't know where you are in the video or what matters to you right now.
 
-## Goal
+## How It Works
 
-Make prerecorded podcast and video content feel interactive by letting users pause at any point and get answers constrained to the content up to that timestamp.
+1. Paste a YouTube URL — the transcript is auto-fetched and stored
+2. Watch the video
+3. Pause at any point and click "Jump In"
+4. Ask a question via text chat
+5. Get a contextually aware answer anchored to what was just being discussed
+6. Chat as long as you want — hit "Resume" to continue watching
 
-## Core Experience
-
-User is watching a video, pauses when something is unclear, asks a question, and gets an answer grounded in the transcript and context available up to that exact point.
-
-## Features
-
-- YouTube integration for ingesting podcast URLs and indexing transcript content
-- Timeline-aware conversations based on the current playback position
-- Voice mode using browser speech APIs for spoken back-and-forth interaction
-- Cross-episode memory for conversations with the same podcaster
-- Semantic retrieval across indexed content
-- Podcaster profiles built from transcripts and prior interactions
-- Authentication for user accounts and saved state
-
-## MVP Scope
-
-- Support the core "pause and ask" loop for prerecorded video
-- Keep answers bounded to transcript context available up to the paused timestamp
-- Provide a lightweight interface for asking questions while staying in the viewing flow
-
-## Out of Scope
-
-- Continuous real-time vision analysis
-- Social or sharing features
-- Full creator simulation
-- Broad summary or highlight workflows unrelated to moment-based Q&A
+The AI has general knowledge plus the full context of what's been discussed up to your pause point. It responds conversationally, like a knowledgeable friend who watched the video with you.
 
 ## Tech Stack
 
-- Framework: Next.js 16 (App Router, Turbopack)
-- Language: TypeScript (strict mode)
-- Styling: Tailwind CSS 4
-- Data layer: Convex
-- LLM: Ollama (local) or OpenAI API
-- Vector and retrieval pipeline: local embeddings plus transcript/profile context services
-- Voice: Web Speech API (STT) plus SpeechSynthesis (TTS)
-- Auth: Clerk
+- **Framework:** Next.js 16 (App Router, Turbopack)
+- **Language:** TypeScript (strict mode)
+- **Styling:** Tailwind CSS 4
+- **Data layer:** Convex
+- **Auth:** Clerk
+- **LLM:** Provider-agnostic (OpenAI, Ollama, or any OpenAI-compatible API)
+- **Transcript:** Python sidecar service (youtube-transcript-api)
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env
+```
+
+Fill in your `.env` with:
+- Convex deployment URL (`NEXT_PUBLIC_CONVEX_URL`)
+- Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`)
+- LLM provider config (`LLM_PROVIDER`, API keys for your chosen provider)
+
+### Start the dev stack
+
+```bash
+# Terminal 1: Convex backend
+npm run convex:dev
+
+# Terminal 2: Transcript service
+npm run transcript:dev
+
+# Terminal 3: Next.js frontend
 npm run dev
 ```
 
-If local model support is enabled, pull the required Ollama model before using AI features.
+The transcript service requires Python 3.11+. Install its dependencies first:
 
 ```bash
-ollama pull llama3.1
+npm run transcript:install
 ```
-
-## Environment
-
-See `.env.example` for the full environment contract. Typical variables include:
-
-- Convex deployment settings
-- Clerk publishable and secret keys
-- LLM provider selection
-- Ollama base URL and model name
-- OpenAI API key when using OpenAI
 
 ## Testing
 
 ```bash
-npx vitest run --reporter=verbose
-npx tsc --noEmit
-npx eslint .
+npm test                # Run test suite (vitest)
+npx tsc --noEmit        # Type check
+npx eslint .            # Lint
+npm run build           # Full build
 ```
 
 ## Project Structure
 
-```text
-src/
-  app/           # Next.js routes, pages, and API handlers
-  components/    # Shared UI components
-  lib/           # LLM, Convex, transcript, and utility modules
-convex/          # Convex functions and generated client artifacts
-tests/           # API and integration-facing test coverage
-transcript-service/ # Python helper service for transcript processing
 ```
+src/
+  app/              # Next.js routes, pages, and API handlers
+  components/       # UI components (YouTubePlayer, ChatPanel, etc.)
+  lib/
+    chat/           # System prompt builder
+    convex/         # Convex client setup
+    llm/            # LLM provider abstraction (OpenAI, Ollama)
+    voice/          # Speech API wrappers (future: voice mode)
+convex/             # Convex schema, queries, mutations, and actions
+tests/              # API and integration test coverage
+transcript-service/ # Python FastAPI service for YouTube transcript extraction
+docs/
+  plans/            # Design documents
+  feature.md        # Deferred features and cleanup backlog
+  changelog.md      # Version history
+```
+
+## Architecture
+
+```
+User pastes YouTube URL
+  → Next.js API route validates + fetches transcript via Python sidecar
+  → Stores episode + transcript chunks in Convex
+
+User watches video, pauses, asks question
+  → Chat API loads all transcript chunks up to pause timestamp
+  → Builds system prompt (transcript as cached prefix + behavioral rules)
+  → Streams LLM response via SSE
+  → Persists messages in Convex for session durability
+```
+
+### Key Design Decisions
+
+- **Full transcript context** — the entire transcript up to the pause point is sent to the LLM, not just a summary or nearby chunks
+- **Prompt caching** — transcript is a stable system prompt prefix, enabling 80-90% cost reduction via provider-level caching
+- **Per-session persistence** — conversations are stored in Convex within a session but don't persist across videos
+- **Provider-agnostic** — swap LLM providers via environment variable
+
+## Future Vision
+
+- Per-creator AI profiles that grow richer across episodes
+- Cross-episode memory and knowledge accumulation
+- Voice mode for spoken conversations
+- Semantic retrieval for large transcript catalogs
+- Advanced context management (summarization, RAG, hybrid approaches)
+
+See `docs/feature.md` for the full backlog.

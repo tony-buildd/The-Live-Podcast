@@ -157,19 +157,20 @@ export const ingestEpisode: ReturnType<typeof action> = action({
       chunks,
     });
 
-    // Schedule both as background jobs so ingest returns immediately.
-    // Embeddings and profile will be ready shortly after.
-    await ctx.scheduler.runAfter(0, internal.memory.reindexEpisodeChunksInternal, {
-      episodeId,
-    });
-
-    await ctx.scheduler.runAfter(
-      0,
-      internal.profiles.rebuildPodcasterProfileInternal,
-      {
-      podcasterId,
-      },
-    );
+    // DEFERRED: embeddings and profile building removed for MVP.
+    // Re-enable when vector search and creator profiles are implemented.
+    //
+    // await ctx.scheduler.runAfter(0, internal.memory.reindexEpisodeChunksInternal, {
+    //   episodeId,
+    // });
+    //
+    // await ctx.scheduler.runAfter(
+    //   0,
+    //   internal.profiles.rebuildPodcasterProfileInternal,
+    //   {
+    //     podcasterId,
+    //   },
+    // );
 
     const episode = await ctx.runQuery(internal.episodes.getEpisodeDetailInternal, {
       episodeId,

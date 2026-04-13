@@ -1,4 +1,4 @@
-# Talk to the Video
+# The Live Podcast
 
 An interactive app that lets you talk to any YouTube video in real time. Paste a URL, watch the video, pause when something is unclear or interesting, and ask a question — the AI answers with full awareness of what's being discussed at that moment.
 

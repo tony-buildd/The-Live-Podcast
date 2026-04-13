@@ -5,7 +5,6 @@ const {
   currentUserMock,
   apiRefs,
   mutationMock,
-  actionMock,
   queryMock,
   streamMock,
 } = vi.hoisted(() => ({
@@ -18,12 +17,14 @@ const {
       appendAssistantMessage: "chat.appendAssistantMessage",
       listConversationMessages: "chat.listConversationMessages",
     },
-    memory: {
-      getConversationContext: "memory.getConversationContext",
+    transcriptChunks: {
+      getChunksUpToTimestamp: "transcriptChunks.getChunksUpToTimestamp",
+    },
+    episodes: {
+      getEpisodeById: "episodes.getEpisodeById",
     },
   },
   mutationMock: vi.fn(),
-  actionMock: vi.fn(),
   queryMock: vi.fn(),
   streamMock: vi.fn(),
 }));
@@ -37,7 +38,6 @@ vi.mock("@/lib/convex/client", () => ({
   api: apiRefs,
   getConvexClient: () => ({
     mutation: mutationMock,
-    action: actionMock,
     query: queryMock,
   }),
   isConvexConfigurationError: () => false,
@@ -77,7 +77,6 @@ describe("POST /api/chat validation", () => {
     });
 
     mutationMock.mockReset();
-    actionMock.mockReset();
     queryMock.mockReset();
     streamMock.mockReset();
 
@@ -96,15 +95,20 @@ describe("POST /api/chat validation", () => {
       },
     );
 
-    actionMock.mockResolvedValue({
-      podcaster: { id: "podcaster_1", name: "Host" },
-      podcasterProfile: null,
-      userMemory: null,
-      transcriptContext: "recent context",
-      relatedContent: [],
-      currentTimestampLabel: "0:30",
-    });
-    queryMock.mockResolvedValue([]);
+    queryMock.mockImplementation(
+      async (ref: string) => {
+        if (ref === apiRefs.transcriptChunks.getChunksUpToTimestamp) {
+          return [{ text: "some transcript", startTime: 0, endTime: 15 }];
+        }
+        if (ref === apiRefs.episodes.getEpisodeById) {
+          return { title: "Test Episode", youtubeId: "abc123" };
+        }
+        if (ref === apiRefs.chat.listConversationMessages) {
+          return [];
+        }
+        return [];
+      },
+    );
     streamMock.mockReturnValue(oneTokenStream());
   });
 

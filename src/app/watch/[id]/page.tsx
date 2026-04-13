@@ -97,26 +97,9 @@ export default function WatchPage() {
     setVoiceMode(false);
   }, []);
 
-  const handleResume = useCallback(async () => {
-    // Guard against rapid toggling
+  const handleResume = useCallback(() => {
     if (jumpInGuardRef.current) return;
     jumpInGuardRef.current = true;
-
-    // End the conversation if we have one
-    if (conversationId && episode) {
-      try {
-        await fetch("/api/chat/end", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversationId,
-            podcasterId: episode.podcaster.id,
-          }),
-        });
-      } catch {
-        // Silently continue — don't block resume on network error
-      }
-    }
 
     setChatActive(false);
     setVoiceMode(false);
@@ -127,7 +110,7 @@ export default function WatchPage() {
     setTimeout(() => {
       jumpInGuardRef.current = false;
     }, 300);
-  }, [conversationId, episode]);
+  }, []);
 
   if (loading) {
     return (

@@ -13,7 +13,7 @@ vi.mock("@clerk/nextjs/server", () => ({
   },
 }));
 
-import middleware from "@/middleware";
+import proxy from "@/proxy";
 
 type AuthFunction = (() => Promise<{ userId: string | null }>) & {
   protect: () => Promise<void>;
@@ -30,7 +30,7 @@ function request(method: string, pathname: string): { method: string; url: strin
 }
 
 describe("middleware auth gate", () => {
-  const runMiddleware = middleware as unknown as (
+  const runMiddleware = proxy as unknown as (
     auth: AuthFunction,
     req: { method: string; url: string },
   ) => Promise<Response>;

@@ -8,6 +8,20 @@ import {
 } from "./_generated/server";
 import { chunkTranscript, extractYouTubeId } from "./transcript";
 
+export const getEpisodeById = query({
+  args: {
+    episodeId: v.id("episodes"),
+  },
+  handler: async (ctx, args) => {
+    const episode = await ctx.db.get(args.episodeId);
+    if (!episode) return null;
+    return {
+      title: episode.title,
+      youtubeId: episode.youtubeId,
+    };
+  },
+});
+
 export const listEpisodes = query({
   args: {
     userId: v.string(),

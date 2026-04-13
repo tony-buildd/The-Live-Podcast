@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import {
   getConvexClient,
   api,
   isConvexConfigurationError,
 } from "@/lib/convex/client";
+import { asConvexId } from "@/lib/convex/ids";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await params;
 
   if (!id || id.trim() === "") {
@@ -21,7 +28,8 @@ export async function GET(
   try {
     const convex = getConvexClient();
     const episode = await convex.query(api.episodes.getEpisodeDetail, {
-      episodeId: id,
+      episodeId: asConvexId<"episodes">(id),
+      userId,
     });
 
     if (!episode) {

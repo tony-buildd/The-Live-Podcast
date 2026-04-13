@@ -23,6 +23,7 @@ export default defineSchema({
   }).index("by_channel_url", ["channelUrl"]),
 
   episodes: defineTable({
+    userId: v.optional(v.string()),
     podcasterId: v.id("podcasters"),
     youtubeUrl: v.string(),
     youtubeId: v.string(),
@@ -33,6 +34,8 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_user", ["userId"])
+    .index("by_user_youtube_id", ["userId", "youtubeId"])
     .index("by_youtube_id", ["youtubeId"])
     .index("by_podcaster", ["podcasterId"]),
 

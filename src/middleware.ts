@@ -10,7 +10,7 @@ const isProtectedApiRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (isProtectedApiRoute(request) && request.method === "POST") {
+  if (isProtectedApiRoute(request)) {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

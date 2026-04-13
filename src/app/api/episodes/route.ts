@@ -169,7 +169,7 @@ export async function POST(request: Request): Promise<Response> {
     ).catch(() => undefined);
 
     const episode = await withTimeout(
-      convex.action(api.episodes.ingestEpisode, { url, segments }),
+      convex.action(api.episodes.ingestEpisode, { userId, url, segments }),
       45_000,
       "Ingest timed out while saving episode to backend",
     );
@@ -201,9 +201,14 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function GET(): Promise<Response> {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const convex = getConvexClient();
-    const episodes = await convex.query(api.episodes.listEpisodes, {});
+    const episodes = await convex.query(api.episodes.listEpisodes, { userId });
 
     return NextResponse.json(episodes, { status: 200 });
   } catch (error) {

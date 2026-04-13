@@ -60,8 +60,15 @@ describe("middleware auth gate", () => {
     expect(res.status).toBe(200);
   });
 
-  it("does not require auth for GET requests to protected API routes", async () => {
+  it("blocks unauthenticated GET requests to protected API routes", async () => {
     const auth = makeAuth(null);
+    const res = await runMiddleware(auth, request("GET", "/api/episodes"));
+
+    expect(res.status).toBe(401);
+  });
+
+  it("allows authenticated GET requests to protected API routes", async () => {
+    const auth = makeAuth("user_123");
     const res = await runMiddleware(auth, request("GET", "/api/episodes"));
 
     expect(res.status).toBe(200);

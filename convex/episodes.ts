@@ -9,9 +9,15 @@ import {
 import { chunkTranscript, extractYouTubeId } from "./transcript";
 
 export const listEpisodes = query({
-  args: {},
-  handler: async (ctx) => {
-    const episodes = await ctx.db.query("episodes").order("desc").collect();
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const episodes = await ctx.db
+      .query("episodes")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .collect();
 
     return Promise.all(
       episodes.map(async (episode) => {
@@ -39,10 +45,13 @@ export const listEpisodes = query({
 });
 
 export const getEpisodeDetailInternal = internalQuery({
-  args: { episodeId: v.id("episodes") },
+  args: {
+    episodeId: v.id("episodes"),
+    userId: v.string(),
+  },
   handler: async (ctx, args) => {
     const episode = await ctx.db.get(args.episodeId);
-    if (!episode) {
+    if (!episode || episode.userId !== args.userId) {
       return null;
     }
 
@@ -82,45 +91,12 @@ export const getEpisodeDetailInternal = internalQuery({
 });
 
 export const getEpisodeDetail: ReturnType<typeof query> = query({
-  args: { episodeId: v.id("episodes") },
+  args: {
+    episodeId: v.id("episodes"),
+    userId: v.string(),
+  },
   handler: async (ctx, args) => {
-    const episode = await ctx.db.get(args.episodeId);
-    if (!episode) {
-      return null;
-    }
-
-    const podcaster = await ctx.db.get(episode.podcasterId);
-    const transcriptChunks = await ctx.db
-      .query("transcriptChunks")
-      .withIndex("by_episode_start_time", (q) => q.eq("episodeId", episode._id))
-      .collect();
-
-    return {
-      id: episode._id,
-      podcasterId: episode.podcasterId,
-      youtubeUrl: episode.youtubeUrl,
-      youtubeId: episode.youtubeId,
-      title: episode.title,
-      description: episode.description,
-      thumbnailUrl: episode.thumbnailUrl,
-      publishedAt: episode.publishedAt,
-      createdAt: episode.createdAt,
-      updatedAt: episode.updatedAt,
-      podcaster: podcaster
-        ? {
-            id: podcaster._id,
-            name: podcaster.name,
-            channelUrl: podcaster.channelUrl,
-            description: podcaster.description,
-          }
-        : null,
-      transcriptChunks: transcriptChunks.map((chunk) => ({
-        id: chunk._id,
-        text: chunk.text,
-        startTime: chunk.startTime,
-        endTime: chunk.endTime,
-      })),
-    };
+    return ctx.runQuery(internal.episodes.getEpisodeDetailInternal, args);
   },
 });
 
@@ -132,6 +108,7 @@ const segmentValidator = v.object({
 
 export const ingestEpisode: ReturnType<typeof action> = action({
   args: {
+    userId: v.string(),
     url: v.string(),
     segments: v.array(segmentValidator),
   },
@@ -146,6 +123,7 @@ export const ingestEpisode: ReturnType<typeof action> = action({
     }
 
     const existing = await ctx.runQuery(internal.episodes.getEpisodeByYoutubeId, {
+      userId: args.userId,
       youtubeId,
     });
 
@@ -169,6 +147,7 @@ export const ingestEpisode: ReturnType<typeof action> = action({
 
     const episodeId = await ctx.runMutation(internal.episodes.createEpisodeWithChunks, {
       podcasterId,
+      userId: args.userId,
       youtubeUrl: trimmedUrl,
       youtubeId,
       title: `Episode ${youtubeId}`,
@@ -191,6 +170,7 @@ export const ingestEpisode: ReturnType<typeof action> = action({
 
     const episode = await ctx.runQuery(internal.episodes.getEpisodeDetailInternal, {
       episodeId,
+      userId: args.userId,
     });
 
     if (!episode) {
@@ -202,11 +182,16 @@ export const ingestEpisode: ReturnType<typeof action> = action({
 });
 
 export const getEpisodeByYoutubeId = internalQuery({
-  args: { youtubeId: v.string() },
+  args: {
+    userId: v.string(),
+    youtubeId: v.string(),
+  },
   handler: async (ctx, args) => {
     return ctx.db
       .query("episodes")
-      .withIndex("by_youtube_id", (q) => q.eq("youtubeId", args.youtubeId))
+      .withIndex("by_user_youtube_id", (q) =>
+        q.eq("userId", args.userId).eq("youtubeId", args.youtubeId),
+      )
       .first();
   },
 });
@@ -243,6 +228,7 @@ export const upsertPodcaster = internalMutation({
 export const createEpisodeWithChunks = internalMutation({
   args: {
     podcasterId: v.id("podcasters"),
+    userId: v.string(),
     youtubeUrl: v.string(),
     youtubeId: v.string(),
     title: v.string(),
@@ -258,6 +244,7 @@ export const createEpisodeWithChunks = internalMutation({
     const now = Date.now();
 
     const episodeId = await ctx.db.insert("episodes", {
+      userId: args.userId,
       podcasterId: args.podcasterId,
       youtubeUrl: args.youtubeUrl,
       youtubeId: args.youtubeId,

@@ -42,27 +42,5 @@ Items documented here are intentionally deferred from the MVP. They represent fu
 - Conversation export/sharing
 - Conversation search
 
-## Cleanup Items (to be removed)
-
-### Dead Prisma Layer
-- `prisma/schema.prisma` — unused, Convex is the live backend
-- `prisma/dev.db`, `prisma/test-*.db` (6 SQLite files) — test artifacts
-- `src/generated/prisma/` (12 generated files) — dead code
-
-### Unused Source Modules
-- `src/lib/memory/context-builder.ts` — not imported by any live code
-- `src/lib/memory/profile-builder.ts` — not imported by any live code
-- `src/lib/transcript/index.ts` — duplicated by `convex/transcript.ts`
-- `transcript_service/` (underscore version) — empty directory
-
-### Tracked Artifacts That Shouldn't Be in Git
-- `transcript-service/__pycache__/*.pyc` — Python bytecode
-- `prisma/*.db` — SQLite databases
-- `convex/_generated/*.js` — generated code triggering lint warnings
-
-### Code Issues
-- Double `clearTimeout` in `convex/transcript.ts:67-68`
-- Duplicate YouTube ID extraction (3 copies across codebase)
-- Chat API episode/podcaster relationship not validated in `startConversation`
-- N+1 query in `listEpisodes` (individual `db.get` per podcaster)
-- `middleware.ts` convention deprecated in Next.js 16 (migrate to `proxy.ts`)
+### Multi-model
+- Model not only understand the context based on the transcript but also can see what's on the video (using vision capabilities) and can answer questions related to that. This would be a game-changer in terms of interactivity and usefulness, especially for educational content.

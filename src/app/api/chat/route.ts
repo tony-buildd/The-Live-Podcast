@@ -138,11 +138,47 @@ export async function POST(request: Request): Promise<Response> {
   let llmMessages: Message[];
   let stream: AsyncGenerator<string, void, unknown>;
   try {
+    const debugFullContext = process.env.CHAT_DEBUG_FULL_CONTEXT === "true";
+
     // Fetch transcript chunks up to the pause timestamp
     const chunks = await convex.query(api.transcriptChunks.getChunksUpToTimestamp, {
       episodeId: typedEpisodeId,
       timestamp: typedTimestamp,
     });
+
+    console.log(`[Chat:API] Found ${chunks.length} transcript chunks up to ${typedTimestamp}s`);
+    const fullTranscript = chunks.map((c) => c.text).join(" ");
+    if (chunks.length > 0) {
+      console.log(`[Chat:API] First chunk start: ${chunks[0].startTime}s, Last chunk end: ${chunks[chunks.length - 1].endTime}s`);
+      console.log(`[Chat:API] Total transcript length: ${fullTranscript.length} characters`);
+
+      const overlapsPausePoint = chunks.some(
+        (chunk) => chunk.startTime <= typedTimestamp && chunk.endTime > typedTimestamp
+      );
+      if (overlapsPausePoint) {
+        console.warn(
+          "[Chat:API] At least one chunk overlaps the pause timestamp, so transcript context may include lines slightly ahead of the paused frame."
+        );
+      }
+
+      if (debugFullContext) {
+        console.log(
+          "[Chat:API] Full transcript chunks:",
+          JSON.stringify(
+            chunks.map((chunk) => ({
+              startTime: chunk.startTime,
+              endTime: chunk.endTime,
+              text: chunk.text,
+            })),
+            null,
+            2
+          )
+        );
+        console.log("[Chat:API] Full transcript content:", fullTranscript);
+      }
+    } else {
+      console.warn(`[Chat:API] No transcript chunks found for episode ${typedEpisodeId} up to timestamp ${typedTimestamp}s`);
+    }
 
     // Fetch episode for the title
     const episode = await convex.query(api.episodes.getEpisodeById, {
@@ -167,6 +203,11 @@ export async function POST(request: Request): Promise<Response> {
       ...systemMessages,
       ...priorMessages,
     ];
+
+    console.log(`[Chat:API] Sending ${llmMessages.length} messages to LLM provider`);
+    if (debugFullContext) {
+      console.log("[Chat:API] Full LLM message payload:", JSON.stringify(llmMessages, null, 2));
+    }
 
     const llm = getLLMProvider();
     stream = llm.stream(llmMessages);
@@ -217,6 +258,10 @@ export async function POST(request: Request): Promise<Response> {
           for await (const token of stream) {
             fullContent += token;
             enqueueSseEvent(controller, { type: "token", content: token });
+          }
+
+          if (debugFullContext) {
+            console.log("[Chat:API] Full assistant response:", fullContent);
           }
 
           await convex.mutation(api.chat.appendAssistantMessage, {

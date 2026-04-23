@@ -5,8 +5,10 @@ import { OpenRouterProvider } from "./openrouter";
 
 export type { LLMProvider, Message, LLMOptions } from "./types";
 
-export function createLLMProvider(): LLMProvider {
-  const provider = process.env.LLM_PROVIDER || "ollama";
+export type ProviderType = "openai" | "ollama" | "openrouter";
+
+export function createLLMProvider(type?: ProviderType): LLMProvider {
+  const provider = type || (process.env.LLM_PROVIDER as ProviderType) || "ollama";
 
   switch (provider) {
     case "openai":
@@ -20,11 +22,18 @@ export function createLLMProvider(): LLMProvider {
   }
 }
 
-let _provider: LLMProvider | null = null;
+let _providers: Partial<Record<ProviderType, LLMProvider>> = {};
 
-export function getLLMProvider(): LLMProvider {
-  if (!_provider) {
-    _provider = createLLMProvider();
+/**
+ * Gets an LLM provider.
+ * If type is specified, it returns that specific provider (cached).
+ * If no type is specified, it returns the default provider from env.
+ */
+export function getLLMProvider(type?: ProviderType): LLMProvider {
+  const targetType = type || (process.env.LLM_PROVIDER as ProviderType) || "ollama";
+  
+  if (!_providers[targetType]) {
+    _providers[targetType] = createLLMProvider(targetType);
   }
-  return _provider;
+  return _providers[targetType]!;
 }

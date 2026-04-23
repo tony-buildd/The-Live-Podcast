@@ -37,10 +37,15 @@ Items documented here are intentionally deferred from the MVP. They represent fu
 - Decide: shared vs per-user library
 - Align schema, route auth, and UI copy to that decision
 
-### Conversation History
-- Per-video conversation history (review past chats)
+### Conversation History & Checkpoints
+- **Resume conversations from checkpoints** — Each time a user pauses at a timestamp and starts a conversation, save it as a checkpoint. Users can later return to any saved checkpoint and resume that specific conversation from where they left off.
+  - Checkpoint persistence: store `(videoId, timestamp, conversationId)` tuples
+  - UI: show list of past conversations with their pause points
+  - Resume: reload conversation history + context up to that pause point
+  - Use case: user pauses at 5:30 to ask about topic A, later pauses at 7:15 to ask about topic B — both conversations remain separate and resumable
+- Per-video conversation archive (view all past chats for a video)
 - Conversation export/sharing
-- Conversation search
+- Conversation search/filtering
 
 ### Multi-model
 - Model not only understand the context based on the transcript but also can see what's on the video (using vision capabilities) and can answer questions related to that. This would be a game-changer in terms of interactivity and usefulness, especially for educational content.

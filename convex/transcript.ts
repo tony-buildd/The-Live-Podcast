@@ -102,7 +102,7 @@ export async function fetchTranscript(
 
 export function chunkTranscript(
   segments: TranscriptSegment[],
-  chunkDurationSeconds = 15,
+  chunkDurationSeconds = 5,
 ): ChunkedTranscript[] {
   if (segments.length === 0) return [];
 

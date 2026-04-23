@@ -104,7 +104,6 @@ export default function WatchPage() {
     setChatActive(false);
     setVoiceMode(false);
     setMicError(false);
-    setConversationId(null);
     playerRef.current?.play();
 
     setTimeout(() => {
@@ -160,9 +159,9 @@ export default function WatchPage() {
         </p>
 
         {/* Layout: side-by-side on desktop, stacked on mobile */}
-        <div className="flex flex-col gap-6 lg:flex-row">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           {/* Player column */}
-          <div className={chatActive ? "w-full lg:w-[60%]" : "w-full"}>
+          <div className={chatActive ? "w-full lg:sticky lg:top-6 lg:z-10 lg:self-start lg:w-[60%]" : "w-full"}>
             <YouTubePlayer ref={playerRef} videoId={episode.youtubeId} />
 
             {/* Action buttons */}
@@ -217,9 +216,12 @@ export default function WatchPage() {
           </div>
 
           {/* Chat column */}
-          {chatActive && (
-            <div className="flex h-[500px] w-full flex-col gap-3 lg:h-auto lg:min-h-[500px] lg:w-[40%]">
-              {/* Mode indicator */}
+          <div
+            className={`${
+              chatActive ? "flex" : "hidden"
+            } h-[500px] w-full flex-col gap-3 lg:h-[calc(100vh-8rem)] lg:min-h-[500px] lg:w-[40%]`}
+          >
+            {/* Mode indicator */}
               <div className="flex items-center gap-2">
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -294,7 +296,6 @@ export default function WatchPage() {
                 </div>
               )}
             </div>
-          )}
         </div>
       </main>
     </div>

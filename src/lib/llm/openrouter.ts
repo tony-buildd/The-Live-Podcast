@@ -20,6 +20,14 @@ export class OpenRouterProvider implements LLMProvider {
    * OpenRouter requires HTTP-Referer and X-OpenRouter-Title for better rankings/analytics.
    */
   async chat(messages: Message[], options?: LLMOptions): Promise<string> {
+    const debugFullPayload = process.env.LLM_DEBUG_FULL_PAYLOAD === "true";
+
+    console.log(`[LLM:OpenRouter] Requesting chat completion for model: ${options?.model || this.defaultModel}`);
+    console.log(`[LLM:OpenRouter] Message count: ${messages.length}`);
+    if (debugFullPayload) {
+      console.log("[LLM:OpenRouter] Full request messages:", JSON.stringify(messages, null, 2));
+    }
+    
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -39,10 +47,16 @@ export class OpenRouterProvider implements LLMProvider {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}${errorData.error?.message ? ` - ${errorData.error.message}` : ""}`);
+      const errorMsg = `OpenRouter API error: ${response.status} ${response.statusText}${errorData.error?.message ? ` - ${errorData.error.message}` : ""}`;
+      console.error(`[LLM:OpenRouter] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();
+    console.log(`[LLM:OpenRouter] Received response (${data.choices[0].message.content.length} chars)`);
+    if (debugFullPayload) {
+      console.log("[LLM:OpenRouter] Full non-stream response:", data.choices[0].message.content);
+    }
     return data.choices[0].message.content;
   }
 
@@ -54,6 +68,13 @@ export class OpenRouterProvider implements LLMProvider {
     messages: Message[],
     options?: LLMOptions
   ): AsyncGenerator<string, void, unknown> {
+    const debugFullPayload = process.env.LLM_DEBUG_FULL_PAYLOAD === "true";
+
+    console.log(`[LLM:OpenRouter] Starting stream for model: ${options?.model || this.defaultModel}`);
+    if (debugFullPayload) {
+      console.log("[LLM:OpenRouter] Full stream request messages:", JSON.stringify(messages, null, 2));
+    }
+    
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -73,7 +94,9 @@ export class OpenRouterProvider implements LLMProvider {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}${errorData.error?.message ? ` - ${errorData.error.message}` : ""}`);
+      const errorMsg = `OpenRouter API error: ${response.status} ${response.statusText}${errorData.error?.message ? ` - ${errorData.error.message}` : ""}`;
+      console.error(`[LLM:OpenRouter] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
 
     const reader = response.body?.getReader();
@@ -81,11 +104,16 @@ export class OpenRouterProvider implements LLMProvider {
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let chunkCount = 0;
+    let fullResponse = "";
 
     // SSE parsing loop
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        console.log(`[LLM:OpenRouter] Stream finished. Received ${chunkCount} chunks.`);
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -101,11 +129,19 @@ export class OpenRouterProvider implements LLMProvider {
         try {
           const parsed = JSON.parse(data);
           const content = parsed.choices[0]?.delta?.content;
-          if (content) yield content;
+          if (content) {
+            chunkCount++;
+            fullResponse += content;
+            yield content;
+          }
         } catch {
           // Silent catch for potential heartbeat or malformed frames
         }
       }
+    }
+
+    if (debugFullPayload) {
+      console.log("[LLM:OpenRouter] Full stream response:", fullResponse);
     }
   }
 }

@@ -19,11 +19,11 @@ describe('OpenRouterProvider', () => {
 
   it('should initialize with provided options', () => {
     const provider = new OpenRouterProvider(mockOptions);
-    // @ts-ignore - reaching into private fields for test verification
+    // @ts-expect-error: reaching into private fields for test verification
     expect(provider.apiKey).toBe('test-key');
-    // @ts-ignore
+    // @ts-expect-error: reaching into private fields for test verification
     expect(provider.baseUrl).toBe('https://openrouter.ai/api/v1');
-    // @ts-ignore
+    // @ts-expect-error: reaching into private fields for test verification
     expect(provider.defaultModel).toBe('test-model');
   });
 
@@ -32,9 +32,9 @@ describe('OpenRouterProvider', () => {
     process.env.OPENROUTER_MODEL = 'env-model';
     
     const provider = new OpenRouterProvider();
-    // @ts-ignore
+    // @ts-expect-error: reaching into private fields for test verification
     expect(provider.apiKey).toBe('env-key');
-    // @ts-ignore
+    // @ts-expect-error: reaching into private fields for test verification
     expect(provider.defaultModel).toBe('env-model');
   });
 

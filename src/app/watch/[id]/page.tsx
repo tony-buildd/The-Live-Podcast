@@ -33,7 +33,7 @@ export default function WatchPage() {
   const [voiceMode, setVoiceMode] = useState(false);
   const [micError, setMicError] = useState(false);
   const [chatTimestamp, setChatTimestamp] = useState(0);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [, setConversationId] = useState<string | null>(null);
   const playerRef = useRef<YouTubePlayerHandle>(null);
   const jumpInGuardRef = useRef(false);
 

@@ -22,7 +22,7 @@ export function createLLMProvider(type?: ProviderType): LLMProvider {
   }
 }
 
-let _providers: Partial<Record<ProviderType, LLMProvider>> = {};
+const _providers: Partial<Record<ProviderType, LLMProvider>> = {};
 
 /**
  * Gets an LLM provider.

@@ -123,3 +123,5 @@ User watches video, pauses, asks question
 See `docs/feature.md` for the full backlog.
 
 NBrain DeepWiki demo note: the README remains the primary entry point for generated repo documentation.
+
+NBrain rendered-docs demo note: DeepWiki-backed Notion pages now preserve list and code block structure.

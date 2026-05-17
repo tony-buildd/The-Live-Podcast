@@ -68,6 +68,8 @@ npx eslint .            # Lint
 npm run build           # Full build
 ```
 
+NBrain webhook test: README changes should refresh the managed Repo Guide.
+
 ## Project Structure
 
 ```

@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
 - Feature backlog and deferred work tracking (`docs/feature.md`)
 - This changelog (`docs/changelog.md`)
 - NBrain demo note: documentation maintenance now watches this changelog as part of the repo docs graph.
+- NBrain full DeepWiki demo note: merged PR updates append evidence to the Roadmap & Changelog docs without replacing the generated page.
 
 ### Research
 - Deep-dive technical analysis of codebase (architecture, bugs, security, performance)

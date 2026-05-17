@@ -69,6 +69,7 @@ npm run build           # Full build
 ```
 
 NBrain webhook test: README changes should refresh the managed Repo Guide.
+NBrain webhook test 2: repo-scoped README changes should update only this repo guide.
 
 ## Project Structure
 

@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file.
 - Design document for MVP "Talk to the Video" (`docs/plans/2026-04-12-mvp-talk-to-the-video-design.md`)
 - Feature backlog and deferred work tracking (`docs/feature.md`)
 - This changelog (`docs/changelog.md`)
+- NBrain demo note: documentation maintenance now watches this changelog as part of the repo docs graph.
 
 ### Research
 - Deep-dive technical analysis of codebase (architecture, bugs, security, performance)

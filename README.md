@@ -39,6 +39,7 @@ Fill in your `.env` with:
 - Convex deployment URL (`NEXT_PUBLIC_CONVEX_URL`)
 - Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`)
 - LLM provider config (`LLM_PROVIDER`, API keys for your chosen provider)
+- Transcript service URL (`TRANSCRIPT_SERVICE_URL`, defaults to `http://127.0.0.1:8765`)
 
 ### Start the dev stack
 
@@ -58,6 +59,9 @@ The transcript service requires Python 3.11+. Install its dependencies first:
 ```bash
 npm run transcript:install
 ```
+
+If you run the transcript service on a different host or port, update
+`TRANSCRIPT_SERVICE_URL` in `.env` before ingesting episodes.
 
 ## Testing
 

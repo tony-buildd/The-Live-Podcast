@@ -121,3 +121,5 @@ User watches video, pauses, asks question
 - Advanced context management (summarization, RAG, hybrid approaches)
 
 See `docs/feature.md` for the full backlog.
+
+NBrain DeepWiki demo note: the README remains the primary entry point for generated repo documentation.

@@ -43,6 +43,7 @@ Items documented here are intentionally deferred from the MVP. They represent fu
   - UI: show list of past conversations with their pause points
   - Resume: reload conversation history + context up to that pause point
   - Use case: user pauses at 5:30 to ask about topic A, later pauses at 7:15 to ask about topic B — both conversations remain separate and resumable
+- NBrain verification note: feature planning docs are part of the repo documentation graph and should stay linked to documentation maintenance.
 - Per-video conversation archive (view all past chats for a video)
 - Conversation export/sharing
 - Conversation search/filtering

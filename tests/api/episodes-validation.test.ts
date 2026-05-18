@@ -161,6 +161,56 @@ describe("POST /api/episodes validation", () => {
     await expect(res.json()).resolves.toEqual({ error: message });
   });
 
+  it("uses a canonical watch URL for oEmbed metadata when given a raw video id", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const requestUrl = String(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+
+      if (requestUrl.includes("/oembed")) {
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              title: "Raw ID Episode",
+              author_name: "Raw ID Host",
+              author_url: "https://www.youtube.com/@raw-id-host",
+            }),
+        };
+      }
+
+      return {
+        ok: true,
+        json: () =>
+          Promise.resolve({ videoId: "dQw4w9WgXcQ", segments: VALID_SEGMENTS }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = new Request("http://localhost/api/episodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "dQw4w9WgXcQ" }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+    const oEmbedCall = fetchMock.mock.calls.find(([input]) =>
+      String(typeof input === "string" || input instanceof URL ? input : input.url).includes("/oembed"),
+    );
+    expect(oEmbedCall).toBeTruthy();
+    expect(String(oEmbedCall?.[0])).toContain(
+      encodeURIComponent("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+    );
+    expect(actionMock).toHaveBeenCalledWith(
+      apiRefs.episodes.ingestEpisode,
+      expect.objectContaining({
+        episodeTitle: "Raw ID Episode",
+        podcasterName: "Raw ID Host",
+      }),
+    );
+  });
+
   it("returns 400 for non-YouTube URLs", async () => {
     const req = new Request("http://localhost/api/episodes", {
       method: "POST",

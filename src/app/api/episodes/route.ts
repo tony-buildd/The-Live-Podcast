@@ -90,9 +90,10 @@ async function fetchTranscriptSegments(
   }));
 }
 
-async function fetchYouTubeMetadata(url: string): Promise<YouTubeOEmbedResponse | null> {
+async function fetchYouTubeMetadata(videoId: string): Promise<YouTubeOEmbedResponse | null> {
+  const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const oEmbedUrl =
-    `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    `https://www.youtube.com/oembed?url=${encodeURIComponent(canonicalUrl)}&format=json`;
 
   try {
     const response = await fetch(oEmbedUrl, {
@@ -158,7 +159,7 @@ export async function POST(request: Request): Promise<Response> {
   // Python service (127.0.0.1:8765). Convex action runtimes are sandboxed
   // and cannot initiate connections to localhost.
   let segments: Array<{ text: string; offset: number; duration: number }>;
-  const metadata = await fetchYouTubeMetadata(url);
+  const metadata = await fetchYouTubeMetadata(videoId);
   try {
     segments = await fetchTranscriptSegments(videoId);
   } catch (transcriptError) {
